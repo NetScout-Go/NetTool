@@ -1,0 +1,35 @@
+<!-- This is an SVG placeholder for the NetScout-Pi dashboard preview -->
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="500" fill="#f0f4f8" />
+  
+  <!-- Header -->
+  <rect width="800" height="60" fill="#1e88e5" />
+  <text x="20" y="35" font-family="Arial" font-size="20" fill="white">NetScout-Pi Dashboard</text>
+  
+  <!-- Sidebar -->
+  <rect x="0" y="60" width="200" height="440" fill="#ffffff" />
+  
+  <!-- Main content -->
+  <rect x="220" y="80" width="560" height="150" rx="5" ry="5" fill="white" stroke="#e0e0e0" />
+  <text x="240" y="110" font-family="Arial" font-size="16" fill="#263238">Network Status</text>
+  
+  <!-- Charts and graphs -->
+  <rect x="220" y="250" width="270" height="200" rx="5" ry="5" fill="white" stroke="#e0e0e0" />
+  <circle cx="355" cy="350" r="80" fill="none" stroke="#1e88e5" stroke-width="30" stroke-dasharray="502, 502" stroke-dashoffset="125" />
+  
+  <rect x="510" y="250" width="270" height="200" rx="5" ry="5" fill="white" stroke="#e0e0e0" />
+  
+  <!-- Chart lines -->
+  <polyline points="530,400 560,380 590,390 620,350 650,370 680,340 710,330 740,350 770,320" 
+            fill="none" stroke="#26a69a" stroke-width="3" />
+  
+  <!-- Menu items -->
+  <rect x="10" y="80" width="180" height="40" rx="5" ry="5" fill="#e3f2fd" />
+  <text x="25" y="105" font-family="Arial" font-size="14" fill="#1e88e5">Dashboard</text>
+  
+  <text x="25" y="155" font-family="Arial" font-size="14" fill="#607d8b">Network Analysis</text>
+  <text x="25" y="195" font-family="Arial" font-size="14" fill="#607d8b">Connectivity Testing</text>
+  <text x="25" y="235" font-family="Arial" font-size="14" fill="#607d8b">Network Discovery</text>
+  <text x="25" y="275" font-family="Arial" font-size="14" fill="#607d8b">DNS Tools</text>
+  <text x="25" y="315" font-family="Arial" font-size="14" fill="#607d8b">Security</text>
+</svg>
