@@ -1,0 +1,33 @@
+{
+  "id": "dns_lookup",
+  "name": "DNS Lookup",
+  "description": "Performs DNS lookups for a domain",
+  "icon": "dns",
+  "parameters": [
+    {
+      "id": "domain",
+      "name": "Domain",
+      "description": "The domain name to lookup",
+      "type": "string",
+      "required": true,
+      "default": "example.com"
+    },
+    {
+      "id": "recordType",
+      "name": "Record Type",
+      "description": "Type of DNS record to lookup",
+      "type": "select",
+      "required": false,
+      "default": "A",
+      "options": [
+        {"value": "A", "label": "A (IPv4 Address)"},
+        {"value": "AAAA", "label": "AAAA (IPv6 Address)"},
+        {"value": "MX", "label": "MX (Mail Exchange)"},
+        {"value": "NS", "label": "NS (Name Server)"},
+        {"value": "TXT", "label": "TXT (Text)"},
+        {"value": "CNAME", "label": "CNAME (Canonical Name)"},
+        {"value": "ALL", "label": "All Records"}
+      ]
+    }
+  ]
+}

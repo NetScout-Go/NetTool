@@ -1,0 +1,7 @@
+{
+  "id": "network_info",
+  "name": "Network Information",
+  "description": "Displays detailed information about the device's network connections",
+  "icon": "network",
+  "parameters": []
+}

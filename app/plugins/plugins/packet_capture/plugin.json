@@ -1,0 +1,54 @@
+{
+  "id": "packet_capture",
+  "name": "Network Packet Capture",
+  "description": "Captures and analyzes network traffic using tcpdump",
+  "icon": "traffic",
+  "parameters": [
+    {
+      "id": "interface",
+      "name": "Network Interface",
+      "description": "The network interface to capture packets from",
+      "type": "string",
+      "required": true,
+      "default": "eth0"
+    },
+    {
+      "id": "capture_filter",
+      "name": "Capture Filter",
+      "description": "BPF filter expression to filter packets (e.g., 'port 80', 'host 192.168.1.1')",
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
+    {
+      "id": "packet_count",
+      "name": "Packet Count",
+      "description": "Number of packets to capture (0 for unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 100,
+      "min": 0,
+      "max": 10000,
+      "step": 10
+    },
+    {
+      "id": "capture_timeout",
+      "name": "Capture Timeout",
+      "description": "Time in seconds to capture packets (0 for unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 10,
+      "min": 0,
+      "max": 300,
+      "step": 5
+    },
+    {
+      "id": "include_headers",
+      "name": "Include Headers",
+      "description": "Include packet headers in output",
+      "type": "boolean",
+      "required": false,
+      "default": true
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+/**
+ * Styles for speed test functionality
+ */
+
+/* Rotating icon animation */
+.spin {
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Speed test status badge */
+#speedTestStatus {
+    display: inline-block;
+    vertical-align: middle;
+    transition: all 0.3s ease;
+}
+
+/* Speed test gauge styling */
+.speed-gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.gauge-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0.5rem 0;
+}
+
+.gauge-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.gauge-progress {
+    width: 100%;
+    height: 10px;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+}
+
+.gauge-progress.download {
+    background-color: rgba(75, 192, 192, 0.2);
+    border: 1px solid rgba(75, 192, 192, 1);
+}
+
+.gauge-progress.upload {
+    background-color: rgba(54, 162, 235, 0.2);
+    border: 1px solid rgba(54, 162, 235, 1);
+}
+
+.unit {
+    font-size: 0.8rem;
+    margin-left: 0.25rem;
+    color: #6c757d;
+    font-weight: normal;
+}

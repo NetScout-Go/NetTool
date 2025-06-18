@@ -1,0 +1,49 @@
+{
+  "id": "network_quality",
+  "name": "Network Quality Monitor",
+  "description": "Continuously monitors network quality metrics including jitter, packet loss, and latency",
+  "icon": "timeline",
+  "parameters": [
+    {
+      "id": "target",
+      "name": "Target Host",
+      "description": "The hostname or IP address to monitor",
+      "type": "string",
+      "required": true,
+      "default": "8.8.8.8"
+    },
+    {
+      "id": "duration",
+      "name": "Test Duration",
+      "description": "Duration of the test in seconds",
+      "type": "number",
+      "required": false,
+      "default": 30,
+      "min": 10,
+      "max": 300,
+      "step": 10
+    },
+    {
+      "id": "interval",
+      "name": "Sampling Interval",
+      "description": "Time between samples in seconds",
+      "type": "number",
+      "required": false,
+      "default": 1,
+      "min": 0.2,
+      "max": 5,
+      "step": 0.2
+    },
+    {
+      "id": "packet_size",
+      "name": "Packet Size",
+      "description": "Size of the ICMP packets in bytes",
+      "type": "number",
+      "required": false,
+      "default": 56,
+      "min": 16,
+      "max": 1472,
+      "step": 8
+    }
+  ]
+}

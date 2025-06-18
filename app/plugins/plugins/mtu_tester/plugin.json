@@ -1,0 +1,49 @@
+{
+  "id": "mtu_tester",
+  "name": "MTU Size Tester",
+  "description": "Determines the optimal MTU size for a connection to help diagnose packet fragmentation issues",
+  "icon": "format_size",
+  "parameters": [
+    {
+      "id": "target",
+      "name": "Target Host",
+      "description": "The hostname or IP address to test MTU size for",
+      "type": "string",
+      "required": true,
+      "default": "8.8.8.8"
+    },
+    {
+      "id": "min_mtu",
+      "name": "Minimum MTU",
+      "description": "Minimum MTU size to test",
+      "type": "number",
+      "required": false,
+      "default": 576,
+      "min": 68,
+      "max": 1500,
+      "step": 1
+    },
+    {
+      "id": "max_mtu",
+      "name": "Maximum MTU",
+      "description": "Maximum MTU size to test",
+      "type": "number",
+      "required": false,
+      "default": 1500,
+      "min": 576,
+      "max": 9000,
+      "step": 1
+    },
+    {
+      "id": "step_size",
+      "name": "Step Size",
+      "description": "Step size for MTU testing",
+      "type": "number",
+      "required": false,
+      "default": 8,
+      "min": 1,
+      "max": 64,
+      "step": 1
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "iperf3",
+  "name": "iPerf3 Throughput Test",
+  "description": "Test network throughput with iPerf3 between this device and a remote iPerf3 server",
+  "icon": "speed",
+  "category": "Performance",
+  "parameters": [
+    {
+      "id": "server",
+      "name": "iPerf3 Server",
+      "description": "IP or hostname of the iPerf3 server",
+      "type": "string",
+      "required": true,
+      "default": ""
+    },
+    {
+      "id": "port",
+      "name": "Port",
+      "description": "iPerf3 server port",
+      "type": "number",
+      "required": false,
+      "default": 5201
+    },
+    {
+      "id": "duration",
+      "name": "Test Duration",
+      "description": "Duration of test in seconds",
+      "type": "number",
+      "required": false,
+      "default": 10,
+      "min": 1,
+      "max": 60,
+      "step": 1
+    },
+    {
+      "id": "protocol",
+      "name": "Protocol",
+      "description": "Protocol to use for the test",
+      "type": "select",
+      "required": false,
+      "default": "tcp",
+      "options": [
+        {"value": "tcp", "label": "TCP"},
+        {"value": "udp", "label": "UDP"}
+      ]
+    },
+    {
+      "id": "reverse",
+      "name": "Reverse Mode",
+      "description": "Run in reverse mode (server sends, client receives)",
+      "type": "boolean",
+      "required": false,
+      "default": false
+    },
+    {
+      "id": "parallel",
+      "name": "Parallel Connections",
+      "description": "Number of parallel connections to use",
+      "type": "number",
+      "required": false,
+      "default": 1,
+      "min": 1,
+      "max": 10,
+      "step": 1
+    }
+  ]
+}

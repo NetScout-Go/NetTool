@@ -1,0 +1,27 @@
+{
+  "id": "example",
+  "name": "Example Plugin",
+  "description": "An example plugin that demonstrates how to create a modular plugin",
+  "icon": "code",
+  "parameters": [
+    {
+      "id": "message",
+      "name": "Message",
+      "description": "A message to echo back",
+      "type": "string",
+      "required": true,
+      "default": "Hello, NetScout!"
+    },
+    {
+      "id": "repeat",
+      "name": "Repeat Count",
+      "description": "Number of times to repeat the message",
+      "type": "number",
+      "required": false,
+      "default": 1,
+      "min": 1,
+      "max": 10,
+      "step": 1
+    }
+  ]
+}

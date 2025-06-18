@@ -1,0 +1,68 @@
+{
+  "id": "network_latency_heatmap",
+  "name": "Network Latency Heatmap",
+  "description": "Creates a visual heatmap of network latency to various targets over time",
+  "icon": "network",
+  "parameters": [
+    {
+      "id": "targets",
+      "name": "Target Hosts",
+      "description": "Comma-separated list of hosts or IPs to ping (e.g., 8.8.8.8,1.1.1.1,example.com)",
+      "type": "string",
+      "required": true,
+      "default": "8.8.8.8,1.1.1.1,google.com"
+    },
+    {
+      "id": "interval",
+      "name": "Measurement Interval (seconds)",
+      "description": "Time between measurements in seconds",
+      "type": "number",
+      "required": false,
+      "default": 1,
+      "min": 0.2,
+      "max": 10,
+      "step": 0.1
+    },
+    {
+      "id": "samples",
+      "name": "Number of Samples",
+      "description": "Total number of samples to collect for each target",
+      "type": "number",
+      "required": false,
+      "default": 30,
+      "min": 5,
+      "max": 120,
+      "step": 1
+    },
+    {
+      "id": "timeout",
+      "name": "Ping Timeout (seconds)",
+      "description": "Maximum time to wait for each ping response",
+      "type": "number",
+      "required": false,
+      "default": 2,
+      "min": 0.5,
+      "max": 5,
+      "step": 0.5
+    },
+    {
+      "id": "packetSize",
+      "name": "Packet Size (bytes)",
+      "description": "Size of ping packets in bytes",
+      "type": "number",
+      "required": false,
+      "default": 56,
+      "min": 16,
+      "max": 1472,
+      "step": 8
+    },
+    {
+      "id": "showGraph",
+      "name": "Show Interactive Graph",
+      "description": "Generate an interactive graph visualization",
+      "type": "boolean",
+      "required": false,
+      "default": true
+    }
+  ]
+}

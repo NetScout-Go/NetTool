@@ -1,0 +1,76 @@
+{
+  "id": "arp_manager",
+  "name": "ARP Manager",
+  "description": "View and manage ARP table entries, including adding, deleting, and flushing entries",
+  "icon": "network",
+  "parameters": [
+    {
+      "id": "action",
+      "name": "Action",
+      "description": "The ARP operation to perform",
+      "type": "select",
+      "required": true,
+      "default": "show",
+      "options": [
+        {"value": "show", "label": "Show ARP Table"},
+        {"value": "get", "label": "Get ARP Entry"},
+        {"value": "add", "label": "Add ARP Entry"},
+        {"value": "delete", "label": "Delete ARP Entry"},
+        {"value": "flush", "label": "Flush ARP Cache"}
+      ]
+    },
+    {
+      "id": "interface",
+      "name": "Network Interface",
+      "description": "The network interface to use (e.g., eth0, wlan0)",
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
+    {
+      "id": "ip_address",
+      "name": "IP Address",
+      "description": "IP address for the ARP entry",
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
+    {
+      "id": "mac_address",
+      "name": "MAC Address",
+      "description": "MAC address for the ARP entry (format: 00:11:22:33:44:55)",
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
+    {
+      "id": "entry_type",
+      "name": "Entry Type",
+      "description": "Type of ARP entry (for adding entries)",
+      "type": "select",
+      "required": false,
+      "default": "permanent",
+      "options": [
+        {"value": "permanent", "label": "Permanent"},
+        {"value": "temp", "label": "Temporary"},
+        {"value": "pub", "label": "Published (Proxy ARP)"}
+      ]
+    },
+    {
+      "id": "verbose",
+      "name": "Verbose Output",
+      "description": "Show detailed output",
+      "type": "boolean",
+      "required": false,
+      "default": false
+    },
+    {
+      "id": "numeric",
+      "name": "Numeric Output",
+      "description": "Show numeric addresses without hostname resolution",
+      "type": "boolean",
+      "required": false,
+      "default": false
+    }
+  ]
+}

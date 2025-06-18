@@ -1,0 +1,43 @@
+{
+  "id": "ssl_checker",
+  "name": "SSL/TLS Certificate Checker",
+  "description": "Validates SSL/TLS certificates of websites and displays expiration dates, chain validity, and security issues",
+  "icon": "security",
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "description": "The hostname or domain to check (e.g., example.com)",
+      "type": "string",
+      "required": true,
+      "default": "example.com"
+    },
+    {
+      "id": "port",
+      "name": "Port",
+      "description": "The port to connect to",
+      "type": "number",
+      "required": false,
+      "default": 443,
+      "min": 1,
+      "max": 65535,
+      "step": 1
+    },
+    {
+      "id": "check_chain",
+      "name": "Check Certificate Chain",
+      "description": "Validate the entire certificate chain",
+      "type": "boolean",
+      "required": false,
+      "default": true
+    },
+    {
+      "id": "show_details",
+      "name": "Show Certificate Details",
+      "description": "Show detailed certificate information",
+      "type": "boolean",
+      "required": false,
+      "default": true
+    }
+  ]
+}

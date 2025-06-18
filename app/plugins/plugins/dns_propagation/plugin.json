@@ -1,0 +1,69 @@
+{
+  "id": "dns_propagation",
+  "name": "DNS Propagation Checker",
+  "description": "Checks DNS propagation of a domain across multiple DNS servers worldwide",
+  "icon": "dns",
+  "parameters": [
+    {
+      "id": "domain",
+      "name": "Domain",
+      "description": "The domain name to check propagation for",
+      "type": "string",
+      "required": true,
+      "default": "example.com"
+    },
+    {
+      "id": "record_type",
+      "name": "Record Type",
+      "description": "The DNS record type to check",
+      "type": "select",
+      "required": true,
+      "default": "A",
+      "options": [
+        {
+          "value": "A",
+          "label": "A (IPv4 Address)"
+        },
+        {
+          "value": "AAAA",
+          "label": "AAAA (IPv6 Address)"
+        },
+        {
+          "value": "CNAME",
+          "label": "CNAME (Canonical Name)"
+        },
+        {
+          "value": "MX",
+          "label": "MX (Mail Exchange)"
+        },
+        {
+          "value": "TXT",
+          "label": "TXT (Text)"
+        },
+        {
+          "value": "NS",
+          "label": "NS (Name Server)"
+        }
+      ]
+    },
+    {
+      "id": "timeout",
+      "name": "Timeout",
+      "description": "Timeout in seconds for each DNS query",
+      "type": "number",
+      "required": false,
+      "default": 5,
+      "min": 1,
+      "max": 30,
+      "step": 1
+    },
+    {
+      "id": "custom_dns_servers",
+      "name": "Custom DNS Servers",
+      "description": "Comma-separated list of additional DNS servers to check (e.g., '8.8.8.8,1.1.1.1')",
+      "type": "string",
+      "required": false,
+      "default": ""
+    }
+  ]
+}

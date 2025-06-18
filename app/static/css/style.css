@@ -1,0 +1,905 @@
+/* Main Layout */
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #0dcaf0;
+    --light-color: #f8f9fa;
+    --dark-color: #212529;
+    --sidebar-width: 250px;
+    
+    /* Light theme (default) */
+    --body-bg: #f5f5f5;
+    --card-bg: #ffffff;
+    --text-color: #212529;
+    --border-color: #dee2e6;
+    --header-bg: #ffffff;
+    --nav-link-color: #343a40;
+    --nav-link-hover: #0d6efd;
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme */
+body.dark-mode {
+    --body-bg: #121212;
+    --card-bg: #1e1e1e;
+    --text-color: #e0e0e0;
+    --border-color: #4e4e4e;
+    --header-bg: #1e1e1e;
+    --nav-link-color: #e0e0e0;
+    --nav-link-hover: #90caf9;
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--body-bg);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Sidebar */
+#sidebar {
+    position: fixed;
+    width: var(--sidebar-width);
+    height: 100vh;
+    background-color: #212529;
+    padding-top: 1rem;
+    transition: all 0.3s;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+}
+
+#sidebar .position-sticky {
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.plugins-container {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+/* Custom scrollbar for sidebar */
+.plugins-container::-webkit-scrollbar {
+    width: 5px;
+}
+
+.plugins-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.plugins-container::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+}
+
+.plugins-container::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Sidebar accordion styles */
+#sidebar .accordion-item {
+    background-color: transparent;
+}
+
+#sidebar .accordion-button {
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    border: none;
+    box-shadow: none;
+}
+
+#sidebar .accordion-button:not(.collapsed) {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+#sidebar .accordion-button:focus {
+    box-shadow: none;
+}
+
+#sidebar .accordion-button::after {
+    filter: invert(1);
+    opacity: 0.5;
+}
+
+#sidebar .accordion-button:not(.collapsed)::after {
+    opacity: 1;
+}
+
+#sidebar.collapse {
+    margin-left: calc(-1 * var(--sidebar-width));
+}
+
+@media (max-width: 767.98px) {
+    #sidebar {
+        margin-left: calc(-1 * var(--sidebar-width));
+    }
+    
+    #sidebar.collapse {
+        margin-left: 0;
+    }
+    
+    main {
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+}
+
+.sidebar-header {
+    padding: 1rem;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-heading {
+    color: rgba(255, 255, 255, 0.5);
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1rem;
+    margin-top: 1rem;
+}
+
+.nav-link {
+    color: rgba(255, 255, 255, 0.75);
+    padding: 0.5rem 1rem;
+    margin: 0.2rem 0;
+    border-radius: 0.25rem;
+    transition: all 0.2s;
+}
+
+.nav-link:hover {
+    color: rgba(255, 255, 255, 1);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link.active {
+    color: #fff;
+    background-color: var(--primary-color);
+}
+
+.nav-link i {
+    margin-right: 0.5rem;
+}
+
+/* Main Navigation Links */
+.main-nav-link {
+    font-weight: bold;
+    border-left: 3px solid transparent;
+}
+
+.main-nav-link.active {
+    border-left: 3px solid #fff;
+}
+
+/* Plugin Navigation Links */
+.plugin-nav-link {
+    padding-left: 1.5rem;
+}
+
+/* Main Content */
+main {
+    transition: margin-left 0.3s;
+}
+
+/* Status Indicators */
+.status-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    color: #6c757d;
+}
+
+.status-icon.connected {
+    color: #28a745;
+}
+
+.status-icon.limited {
+    color: #ffc107;
+}
+
+.status-icon.disconnected {
+    color: #dc3545;
+}
+
+.status-text {
+    font-weight: 600;
+}
+
+/* Real-time indicators */
+.realtime-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    margin-right: 5px;
+}
+
+.realtime-indicator.active {
+    background-color: #28a745;
+}
+
+.realtime-indicator.pulse {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.2);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Dashboard Cards */
+.card {
+    border-radius: 0.5rem;
+    border: none;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 1rem;
+    height: 100%;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+.card-header {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card-title {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* Network Dashboard Styles */
+.dashboard-container {
+    padding-bottom: 2rem;
+}
+
+.dashboard-container .card {
+    box-shadow: var(--card-shadow);
+    border-radius: 0.5rem;
+    border: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    background-color: var(--card-bg);
+}
+
+.dashboard-container .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Network Topology Visualization */
+.topology-container {
+    position: relative;
+    min-height: 350px;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    padding: 20px;
+}
+
+.topology-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.topology-map {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 0;
+}
+
+.topology-internet,
+.topology-router,
+.topology-device {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    min-width: 160px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin: 0.5rem;
+}
+
+.topology-internet {
+    background-color: #e9ecef;
+}
+
+.topology-router {
+    background-color: #e3f2fd;
+}
+
+.topology-device.active {
+    background-color: #d4edda;
+    border: 2px solid #28a745;
+}
+
+.topology-line {
+    height: 3rem;
+    width: 2px;
+    background-color: #adb5bd;
+    position: relative;
+}
+
+.topology-line::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background-color: #adb5bd;
+    border-radius: 50%;
+}
+
+.topology-wifi-indicator {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    background-color: #e3f2fd;
+    padding: 0.5rem;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.topology-wifi-indicator i {
+    font-size: 1.5rem;
+    color: #0d6efd;
+}
+
+.topology-neighbors {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 2rem;
+    width: 100%;
+}
+
+.topology-device.neighbor {
+    flex: 0 0 calc(33.333% - 1rem);
+    min-width: 120px;
+    font-size: 0.9rem;
+}
+
+/* Plugin Pages */
+.plugin-container {
+    padding-bottom: 2rem;
+}
+
+.plugin-container .card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 0.5rem;
+    border: none;
+}
+
+/* Plugin Results */
+.result-card {
+    background-color: #fff;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+}
+
+.result-header {
+    background-color: #f8f9fa;
+    padding: 0.75rem 1rem;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.result-body {
+    padding: 1rem;
+}
+
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.result-row:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.result-label {
+    font-weight: 500;
+    color: var(--secondary-color);
+}
+
+.result-value {
+    font-weight: 500;
+}
+
+.raw-output {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.json-result {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* Speed Test Gauge */
+.speed-gauge {
+    padding: 1rem;
+    text-align: center;
+}
+
+.gauge-label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.gauge-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.gauge-value .unit {
+    font-size: 1rem;
+    font-weight: normal;
+    color: var(--secondary-color);
+    margin-left: 0.25rem;
+}
+
+.gauge-progress {
+    width: 100%;
+    height: 1rem;
+    border-radius: 0.5rem;
+}
+
+.gauge-progress.download::-webkit-progress-value {
+    background-color: var(--primary-color);
+}
+
+.gauge-progress.upload::-webkit-progress-value {
+    background-color: var(--info-color);
+}
+
+/* DNS Records */
+.dns-record-type {
+    margin-bottom: 1.5rem;
+}
+
+.dns-record-type:last-child {
+    margin-bottom: 0;
+}
+
+.record-type {
+    font-size: 1rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: var(--primary-color);
+}
+
+.record-list {
+    list-style-type: none;
+    padding-left: 0;
+    margin-bottom: 0;
+}
+
+.record-list li {
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    margin-bottom: 0.25rem;
+    font-family: monospace;
+}
+
+/* Network Traffic Chart */
+.traffic-chart-container {
+    height: 300px;
+    position: relative;
+}
+
+/* Value Display for Range Inputs */
+.value-display {
+    min-width: 2.5rem;
+    text-align: center;
+    background-color: #f8f9fa;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+/* Loading animation */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    vertical-align: text-bottom;
+    border: 0.25em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin .75s linear infinite;
+}
+
+/* Spinner animation for speed test */
+.spin {
+    animation: spin 1.2s linear infinite;
+    display: inline-block;
+}
+
+/* Speed Test Status Badge */
+.speed-test-status {
+    z-index: 100;
+    font-size: 0.8rem;
+    display: none; /* Initially hidden */
+}
+
+/* Spinning Icon Animation */
+.spin {
+    animation: spin 1s infinite linear;
+    display: inline-block;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Print Styles */
+@media print {
+    #sidebar, .btn-toolbar {
+        display: none !important;
+    }
+    
+    main {
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+    
+    .card {
+        break-inside: avoid;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .topology-internet,
+    .topology-router,
+    .topology-device {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .topology-internet i,
+    .topology-router i,
+    .topology-device i {
+        font-size: 1.5rem;
+    }
+    
+    .topology-wifi-indicator {
+        right: calc(50% - 90px);
+    }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 991.98px) {
+    .dashboard-container .card {
+        margin-bottom: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .traffic-chart-container {
+        height: 200px;
+    }
+    
+    .topology-device.neighbor {
+        flex: 0 0 calc(50% - 1rem);
+    }
+}
+
+/* Dashboard cards */
+.dashboard-container .card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.dashboard-container .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+/* Plugin Results and Loading States */
+#resultsLoading {
+    padding: 2rem;
+    background-color: rgba(240, 248, 255, 0.8);
+    border-radius: 0.5rem;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+#resultsLoading .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: var(--primary-color);
+}
+
+#loadingMessage {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    color: var(--dark-color);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.6;
+    }
+}
+
+.external-plugin-results .result-card {
+    margin-bottom: 1.5rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.external-plugin-results .result-header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+}
+
+.external-plugin-results .result-body {
+    padding: 1rem;
+    background-color: white;
+}
+
+.external-plugin-results .result-row {
+    display: flex;
+    border-bottom: 1px solid #f0f0f0;
+    padding: 0.5rem 0;
+}
+
+.external-plugin-results .result-row:last-child {
+    border-bottom: none;
+}
+
+.external-plugin-results .result-label {
+    flex: 0 0 30%;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.external-plugin-results .result-value {
+    flex: 0 0 70%;
+}
+
+/* Service Latency Cards */
+.service-latency-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.service-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: var(--card-bg);
+    border-radius: 10px;
+    padding: 15px 10px;
+    box-shadow: var(--card-shadow);
+    transition: all 0.3s ease;
+}
+
+.service-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.service-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+    color: var(--primary-color);
+}
+
+.service-name {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: var(--text-color);
+}
+
+.service-latency {
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 16px;
+}
+
+.progress-bar {
+    transition: width 0.5s ease-in-out;
+}
+
+/* Tables in dark mode */
+body.dark-mode .table {
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .table-hover > tbody > tr:hover {
+    background-color: rgba(255, 255, 255, 0.075);
+}
+
+/* Progress bars in dark mode */
+body.dark-mode .progress {
+    background-color: #2d2d2d;
+}
+
+/* Form elements in dark mode */
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+    background-color: #2d2d2d;
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+body.dark-mode .form-control:focus {
+    background-color: #2d2d2d;
+    color: var(--text-color);
+}
+
+/* Modal in dark mode */
+body.dark-mode .modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+/* Dark mode toggle button */
+#darkModeToggle {
+    margin-top: 10px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.25rem 0.75rem;
+    transition: all 0.3s ease;
+}
+
+#darkModeToggle:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .text-muted {
+    color: #adb5bd !important;
+}
+
+/* Chart adjustments for dark mode */
+body.dark-mode canvas {
+    filter: invert(0.85) hue-rotate(180deg);
+}
+
+/* Wi-Fi Device Locator Plugin Styles */
+.device-list table {
+    font-size: 0.9rem;
+}
+
+.signal-bar-container {
+    width: 100%;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    height: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+
+body.dark-mode .signal-bar-container {
+    background-color: #343a40;
+}
+
+.signal-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease-in-out;
+}
+
+.signal-text {
+    position: absolute;
+    left: 5px;
+    top: 0;
+    font-size: 12px;
+    color: #333;
+    line-height: 20px;
+    text-shadow: 0 0 2px #fff;
+}
+
+body.dark-mode .signal-text {
+    color: #f8f9fa;
+    text-shadow: 0 0 2px #000;
+}
+
+/* Signal bar colors */
+.signal-bar.bg-success {
+    background: linear-gradient(to right, #198754, #20c997);
+}
+
+.signal-bar.bg-info {
+    background: linear-gradient(to right, #0dcaf0, #6610f2);
+}
+
+.signal-bar.bg-warning {
+    background: linear-gradient(to right, #ffc107, #fd7e14);
+}
+
+.signal-bar.bg-danger {
+    background: linear-gradient(to right, #dc3545, #d63384);
+}

@@ -1,0 +1,43 @@
+{
+  "id": "device_discovery",
+  "name": "Network Device Discovery",
+  "description": "Discovers devices on the local network and shows IP addresses, MAC addresses, and device types if available",
+  "icon": "devices",
+  "parameters": [
+    {
+      "id": "network_range",
+      "name": "Network Range",
+      "description": "CIDR notation of the network range to scan (e.g., 192.168.1.0/24)",
+      "type": "string",
+      "required": true,
+      "default": "192.168.1.0/24"
+    },
+    {
+      "id": "scan_timeout",
+      "name": "Scan Timeout",
+      "description": "Timeout in seconds for the scan",
+      "type": "number",
+      "required": false,
+      "default": 30,
+      "min": 5,
+      "max": 300,
+      "step": 5
+    },
+    {
+      "id": "resolve_hostnames",
+      "name": "Resolve Hostnames",
+      "description": "Attempt to resolve hostnames for discovered devices",
+      "type": "boolean",
+      "required": false,
+      "default": true
+    },
+    {
+      "id": "identify_devices",
+      "name": "Identify Device Types",
+      "description": "Attempt to identify device types by port scanning",
+      "type": "boolean",
+      "required": false,
+      "default": true
+    }
+  ]
+}

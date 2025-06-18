@@ -1,0 +1,46 @@
+{
+  "id": "reverse_dns_lookup",
+  "name": "Reverse DNS Lookup",
+  "description": "Performs reverse DNS lookups to get hostnames from IP addresses with batch processing capabilities",
+  "icon": "dns",
+  "parameters": [
+    {
+      "id": "ip_addresses",
+      "name": "IP Addresses",
+      "description": "List of IP addresses for reverse lookup (one per line or comma-separated)",
+      "type": "string",
+      "required": true,
+      "default": "8.8.8.8"
+    },
+    {
+      "id": "timeout",
+      "name": "Timeout",
+      "description": "Timeout in seconds for each lookup",
+      "type": "number",
+      "required": false,
+      "default": 5,
+      "min": 1,
+      "max": 30,
+      "step": 1
+    },
+    {
+      "id": "dns_server",
+      "name": "DNS Server",
+      "description": "DNS server to use for lookups (leave blank for system default)",
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
+    {
+      "id": "concurrent_lookups",
+      "name": "Concurrent Lookups",
+      "description": "Number of lookups to perform concurrently",
+      "type": "number",
+      "required": false,
+      "default": 5,
+      "min": 1,
+      "max": 50,
+      "step": 1
+    }
+  ]
+}

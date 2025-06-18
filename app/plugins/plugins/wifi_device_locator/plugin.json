@@ -1,0 +1,59 @@
+{
+  "id": "wifi_device_locator",
+  "name": "Wi-Fi Device Locator",
+  "description": "Helps locate nearby Wi-Fi devices (access points and clients) by displaying their signal strength and other information",
+  "icon": "wifi",
+  "parameters": [
+    {
+      "id": "interface",
+      "name": "Wi-Fi Interface",
+      "description": "The wireless interface to use for scanning",
+      "type": "string",
+      "required": true,
+      "default": "wlan0"
+    },
+    {
+      "id": "scan_time",
+      "name": "Scan Time",
+      "description": "Time in seconds to scan for devices",
+      "type": "number",
+      "required": false,
+      "default": 10,
+      "min": 5,
+      "max": 60,
+      "step": 5
+    },
+    {
+      "id": "scan_mode",
+      "name": "Scan Mode",
+      "description": "Type of devices to scan for",
+      "type": "select",
+      "required": true,
+      "default": "all",
+      "options": [
+        {"value": "all", "label": "All Devices"},
+        {"value": "ap", "label": "Access Points Only"},
+        {"value": "client", "label": "Client Devices Only"}
+      ]
+    },
+    {
+      "id": "min_signal_strength",
+      "name": "Minimum Signal Strength",
+      "description": "Minimum signal strength to display (dBm)",
+      "type": "number",
+      "required": false,
+      "default": -80,
+      "min": -100,
+      "max": -30,
+      "step": 5
+    },
+    {
+      "id": "continuous_scan",
+      "name": "Continuous Scan",
+      "description": "Continuously update signal strength (useful for locating devices)",
+      "type": "boolean",
+      "required": false,
+      "default": false
+    }
+  ]
+}

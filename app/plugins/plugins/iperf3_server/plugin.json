@@ -1,0 +1,62 @@
+{
+  "id": "iperf3_server",
+  "name": "iPerf3 Server",
+  "description": "Start an iPerf3 server on this device to enable bandwidth testing from other devices",
+  "icon": "dns",
+  "category": "Performance",
+  "parameters": [
+    {
+      "id": "port",
+      "name": "Port",
+      "description": "Port to listen on for iPerf3 connections",
+      "type": "number",
+      "required": false,
+      "default": 5201
+    },
+    {
+      "id": "bind_address",
+      "name": "Bind Address",
+      "description": "IP address to bind the server to (empty for all interfaces)",
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
+    {
+      "id": "protocol",
+      "name": "Protocol",
+      "description": "Protocol to use for the server",
+      "type": "select",
+      "required": false,
+      "default": "both",
+      "options": [
+        {"value": "both", "label": "TCP & UDP"},
+        {"value": "tcp", "label": "TCP Only"},
+        {"value": "udp", "label": "UDP Only"}
+      ]
+    },
+    {
+      "id": "duration",
+      "name": "Server Duration",
+      "description": "How long to run the server (minutes, 0 for manual stop)",
+      "type": "number",
+      "required": false,
+      "default": 30,
+      "min": 0,
+      "max": 1440,
+      "step": 5
+    },
+    {
+      "id": "action",
+      "name": "Action",
+      "description": "Start or stop the iPerf3 server",
+      "type": "select",
+      "required": true,
+      "default": "start",
+      "options": [
+        {"value": "start", "label": "Start Server"},
+        {"value": "stop", "label": "Stop Server"},
+        {"value": "status", "label": "Check Status"}
+      ]
+    }
+  ]
+}

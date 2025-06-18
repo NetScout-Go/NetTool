@@ -1,0 +1,96 @@
+.latency-heatmap-container {
+    margin: 20px 0;
+    overflow-x: auto;
+}
+
+.latency-heatmap {
+    border-collapse: collapse;
+    font-family: monospace;
+    width: 100%;
+}
+
+.latency-heatmap th {
+    padding: 8px;
+    text-align: center;
+    background-color: #f2f2f2;
+    position: sticky;
+    top: 0;
+}
+
+.latency-heatmap td {
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    font-size: 10px;
+    color: rgba(0, 0, 0, 0.7);
+    border: 1px solid #ddd;
+}
+
+.latency-heatmap .target-label {
+    padding: 5px;
+    text-align: right;
+    font-weight: bold;
+    background-color: #f2f2f2;
+    position: sticky;
+    left: 0;
+}
+
+.latency-heatmap .ping-failed {
+    background-color: #333;
+    color: #fff;
+}
+
+/* Color scale for latency values */
+.latency-low {
+    background-color: #4CAF50;
+}
+
+.latency-medium-low {
+    background-color: #8BC34A;
+}
+
+.latency-medium {
+    background-color: #FFEB3B;
+}
+
+.latency-medium-high {
+    background-color: #FFC107;
+}
+
+.latency-high {
+    background-color: #FF5722;
+}
+
+.latency-very-high {
+    background-color: #F44336;
+}
+
+/* Stats table styling */
+.latency-stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.latency-stats-table th,
+.latency-stats-table td {
+    padding: 8px;
+    border: 1px solid #ddd;
+    text-align: center;
+}
+
+.latency-stats-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.latency-stats-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+/* Responsive chart container */
+.chart-container {
+    width: 100%;
+    height: 400px;
+    margin: 20px 0;
+}

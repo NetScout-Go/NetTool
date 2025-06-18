@@ -1,0 +1,431 @@
+{{define "content"}}
+<div class="dashboard-container">
+    <!-- Quick Overview Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Connection Status</h5>
+                    <div class="text-center mb-3">
+                        <div class="status-indicator" id="connectionStatus">
+                            <i class="bi bi-wifi status-icon"></i>
+                            <span class="status-text">Connecting...</span>
+                        </div>
+                    </div>
+                    <div class="small text-muted">
+                        <div>Uptime: <span id="uptime">--:--:--</span></div>
+                        <div>Type: <span id="connectionType">--</span></div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <div class="small text-muted">
+                            <i class="bi bi-info-circle"></i> Connection overview
+                        </div>
+                        <div>
+                            <span class="realtime-indicator"></span> <span class="small">Live</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">IP Configuration</h5>
+                    <div class="small">
+                        <div class="row">
+                            <div class="col-5">IPv4:</div>
+                            <div class="col-7 text-end" id="ipv4Address">--</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-5">Subnet:</div>
+                            <div class="col-7 text-end" id="subnetMask">--</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-5">Gateway:</div>
+                            <div class="col-7 text-end" id="gateway">--</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-5">IPv6:</div>
+                            <div class="col-7 text-end text-truncate" id="ipv6Address">--</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <div class="small text-muted">
+                            <i class="bi bi-info-circle"></i> IP addressing
+                        </div>
+                        <div>
+                            <span class="realtime-indicator"></span> <span class="small">Live</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Connection Metrics</h5>
+                    <div class="small">
+                        <div class="row">
+                            <div class="col-6">Latency:</div>
+                            <div class="col-6 text-end" id="latency">-- ms</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">Packet Loss:</div>
+                            <div class="col-6 text-end" id="packetLoss">--%</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">Signal:</div>
+                            <div class="col-6 text-end" id="signalStrength">-- dBm</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">Bandwidth:</div>
+                            <div class="col-6 text-end" id="bandwidth">-- Mbps</div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <button class="btn btn-sm btn-outline-primary w-100" id="runSpeedTestBtn">
+                                    <i class="bi bi-speedometer2"></i> Run Speed Test
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <div class="small text-muted">
+                            <i class="bi bi-info-circle"></i> Performance metrics
+                        </div>
+                        <div>
+                            <span class="realtime-indicator"></span> <span class="small">Live</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">DNS Settings</h5>
+                    <div class="small" id="dnsServers">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span class="ms-2">Loading DNS settings...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <div class="small text-muted">
+                            <i class="bi bi-info-circle"></i> Name resolution
+                        </div>
+                        <div>
+                            <span class="realtime-indicator"></span> <span class="small">Live</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Traffic Graphs -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <h5 class="card-title mb-0">Network Traffic</h5>
+                    <div>
+                        <span class="realtime-indicator"></span> <span class="small">Live</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="traffic-chart-container">
+                        <canvas id="trafficChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Details in Two Columns -->
+    <div class="row mb-4">
+        <!-- Left Column: Interface Details -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Interface Details</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <th>Interface Name</th>
+                                <td id="interfaceName">--</td>
+                            </tr>
+                            <tr>
+                                <th>MAC Address</th>
+                                <td id="macAddress">--</td>
+                            </tr>
+                            <tr>
+                                <th>Speed</th>
+                                <td id="linkSpeed">--</td>
+                            </tr>
+                            <tr>
+                                <th>Duplex</th>
+                                <td id="duplex">--</td>
+                            </tr>
+                            <tr>
+                                <th>SSID</th>
+                                <td id="ssid">--</td>
+                            </tr>
+                            <tr>
+                                <th>VLAN</th>
+                                <td id="vlanInfo">--</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Column: Traffic Statistics -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Traffic Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <th>Bytes Received</th>
+                                <td id="bytesReceived">--</td>
+                            </tr>
+                            <tr>
+                                <th>Bytes Sent</th>
+                                <td id="bytesSent">--</td>
+                            </tr>
+                            <tr>
+                                <th>Packets Received</th>
+                                <td id="packetsReceived">--</td>
+                            </tr>
+                            <tr>
+                                <th>Packets Sent</th>
+                                <td id="packetsSent">--</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Latency -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <h5 class="card-title mb-0">Service Latency</h5>
+                    <div>
+                        <span class="realtime-indicator"></span> <span class="small">Live</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Major Services</h6>
+                                    <div class="service-latency-grid">
+                                        <div class="service-card">
+                                            <div class="service-icon">
+                                                <i class="bi bi-google"></i>
+                                            </div>
+                                            <div class="service-name">Google</div>
+                                            <div class="service-latency" id="googleLatency" style="font-size: 18px; font-weight: bold;">-- ms</div>
+                                        </div>
+                                        <div class="service-card">
+                                            <div class="service-icon">
+                                                <i class="bi bi-amazon"></i>
+                                            </div>
+                                            <div class="service-name">Amazon</div>
+                                            <div class="service-latency" id="amazonLatency" style="font-size: 18px; font-weight: bold;">-- ms</div>
+                                        </div>
+                                        <div class="service-card">
+                                            <div class="service-icon">
+                                                <i class="bi bi-cloud"></i>
+                                            </div>
+                                            <div class="service-name">Cloudflare</div>
+                                            <div class="service-latency" id="cloudflareLatency" style="font-size: 18px; font-weight: bold;">-- ms</div>
+                                        </div>
+                                        <div class="service-card">
+                                            <div class="service-icon">
+                                                <i class="bi bi-microsoft"></i>
+                                            </div>
+                                            <div class="service-name">Microsoft</div>
+                                            <div class="service-latency" id="microsoftLatency" style="font-size: 18px; font-weight: bold;">-- ms</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Network Services</h6>
+                                    <div class="row mb-2">
+                                        <div class="col-8">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-hdd-network me-2"></i>
+                                                <span>DNS Resolution</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4 text-end">
+                                            <span id="dnsLatency">-- ms</span>
+                                        </div>
+                                    </div>
+                                    <div class="progress mb-3" style="height: 5px;">
+                                        <div id="dnsLatencyBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                    <div class="row mb-2">
+                                        <div class="col-8">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-globe me-2"></i>
+                                                <span>HTTP Connection</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4 text-end">
+                                            <span id="httpLatency">-- ms</span>
+                                        </div>
+                                    </div>
+                                    <div class="progress" style="height: 5px;">
+                                        <div id="httpLatencyBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ARP Table -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">IP Neighbor Table (ARP)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>MAC Address</th>
+                                    <th>Interface</th>
+                                    <th>State</th>
+                                </tr>
+                            </thead>
+                            <tbody id="arpTable">
+                                <tr>
+                                    <td colspan="4" class="text-center">Loading ARP table data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="small text-muted text-center">
+                        <i class="bi bi-info-circle"></i> IP to MAC address mappings from kernel neighbor table
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Network Topology (simplified) -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Network Topology</h5>
+                </div>
+                <div class="card-body">
+                    <div class="topology-container" id="networkTopology">
+                        <div class="topology-loading">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Generating network topology...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="small text-muted text-center">
+                        <i class="bi bi-info-circle"></i> Simplified visualization of your network connection
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Last update info -->
+    <div class="row">
+        <div class="col-12 text-end text-muted small">
+            <span>Last Updated: <span id="lastUpdated">--</span></span>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+    // We won't define any functionality here as we're using the dashboard.js file
+    // This block is kept to maintain compatibility with the template structure
+    console.log("Dashboard template loaded successfully!");
+    
+    // Direct initialization of service latencies for debugging
+    fetch('/api/network-info')
+        .then(response => response.json())
+        .then(data => {
+            console.log("Direct fetch in template:", data);
+            
+            // Update service latencies directly
+            if (data.serviceLatency) {
+                // Google
+                const googleEl = document.getElementById('googleLatency');
+                if (googleEl && data.serviceLatency.google) {
+                    googleEl.textContent = `${data.serviceLatency.google.toFixed(1)} ms`;
+                }
+                
+                // Amazon
+                const amazonEl = document.getElementById('amazonLatency');
+                if (amazonEl && data.serviceLatency.amazon) {
+                    amazonEl.textContent = `${data.serviceLatency.amazon.toFixed(1)} ms`;
+                }
+                
+                // Cloudflare
+                const cloudflareEl = document.getElementById('cloudflareLatency');
+                if (cloudflareEl && data.serviceLatency.cloudflare) {
+                    cloudflareEl.textContent = `${data.serviceLatency.cloudflare.toFixed(1)} ms`;
+                }
+                
+                // Microsoft
+                const microsoftEl = document.getElementById('microsoftLatency');
+                if (microsoftEl && data.serviceLatency.microsoft) {
+                    microsoftEl.textContent = `${data.serviceLatency.microsoft.toFixed(1)} ms`;
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Error fetching data in template:", error);
+        });
+</script>
+{{end}}
