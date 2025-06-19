@@ -8,14 +8,22 @@ document.addEventListener('DOMContentLoaded', function() {
             navLinks.classList.toggle('show');
             mobileMenuBtn.classList.toggle('active');
         });
-    }
-    
-<<<<<<< HEAD
-    // Theme toggle functionality
+    }    // Enhanced theme toggle functionality
     const themeToggle = document.getElementById('theme-toggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', function() {
+    if (themeToggle) {        themeToggle.addEventListener('click', function() {
+            // Add transition class for animation
+            document.body.classList.add('theme-transition');
+            
+            // Toggle dark mode class on body
             document.body.classList.toggle('dark-mode');
+            
+            // For dashboard pages, also toggle dashboard-dark-mode class
+            if (document.body.classList.contains('dashboard-body')) {
+                document.body.classList.toggle('dashboard-dark-mode');
+            }
+            
+            // Apply dark mode to html element as well for complete coverage
+            document.documentElement.classList.toggle('dark-mode');
             
             // Update icon visibility
             themeToggle.classList.toggle('dark-active');
@@ -26,12 +34,99 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 localStorage.setItem('theme', 'light');
             }
+            
+            // Dispatch a custom event for other scripts to listen for
+            const themeChangeEvent = new CustomEvent('themechange', {
+                detail: { theme: document.body.classList.contains('dark-mode') ? 'dark' : 'light' }
+            });
+            document.dispatchEvent(themeChangeEvent);
+            
+            // Remove transition class after animation completes
+            setTimeout(() => {
+                document.body.classList.remove('theme-transition');
+            }, 500);
         });
-        
-        // Check for saved theme preference
+          // Check for saved theme preference and apply to all pages
         if (localStorage.getItem('theme') === 'dark') {
             document.body.classList.add('dark-mode');
+            document.documentElement.classList.add('dark-mode');
             themeToggle.classList.add('dark-active');
+            
+            // Add dashboard dark mode if on dashboard page
+            if (document.body.classList.contains('dashboard-body')) {
+                document.body.classList.add('dashboard-dark-mode');
+            }
+            
+            // Dispatch initial theme event
+            const themeChangeEvent = new CustomEvent('themechange', {
+                detail: { theme: 'dark' }
+            });
+            document.dispatchEvent(themeChangeEvent);
+        } else {
+            // Dispatch initial theme event
+            const themeChangeEvent = new CustomEvent('themechange', {
+                detail: { theme: 'light' }
+            });
+            document.dispatchEvent(themeChangeEvent);
+        }
+        
+        // Listen for system theme preference changes
+        if (window.matchMedia) {
+            const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+            
+            // Initial check for system preference if no saved preference
+            if (!localStorage.getItem('theme')) {                if (prefersDarkScheme.matches) {
+                    document.body.classList.add('dark-mode');
+                    document.documentElement.classList.add('dark-mode');
+                    themeToggle.classList.add('dark-active');
+                    
+                    if (document.body.classList.contains('dashboard-body')) {
+                        document.body.classList.add('dashboard-dark-mode');
+                    }
+                    
+                    localStorage.setItem('theme', 'dark');
+                    
+                    // Dispatch theme event
+                    const themeChangeEvent = new CustomEvent('themechange', {
+                        detail: { theme: 'dark' }
+                    });
+                    document.dispatchEvent(themeChangeEvent);
+                }
+            }
+            
+            // Listen for changes in system preference
+            prefersDarkScheme.addEventListener('change', (e) => {
+                // Only apply system preference if user hasn't set a preference
+                if (!localStorage.getItem('theme')) {                    if (e.matches) {
+                        document.body.classList.add('dark-mode');
+                        document.documentElement.classList.add('dark-mode');
+                        themeToggle.classList.add('dark-active');
+                        
+                        if (document.body.classList.contains('dashboard-body')) {
+                            document.body.classList.add('dashboard-dark-mode');
+                        }
+                        
+                        // Dispatch theme event
+                        const themeChangeEvent = new CustomEvent('themechange', {
+                            detail: { theme: 'dark' }
+                        });
+                        document.dispatchEvent(themeChangeEvent);                    } else {
+                        document.body.classList.remove('dark-mode');
+                        document.documentElement.classList.remove('dark-mode');
+                        themeToggle.classList.remove('dark-active');
+                        
+                        if (document.body.classList.contains('dashboard-body')) {
+                            document.body.classList.remove('dashboard-dark-mode');
+                        }
+                        
+                        // Dispatch theme event
+                        const themeChangeEvent = new CustomEvent('themechange', {
+                            detail: { theme: 'light' }
+                        });
+                        document.dispatchEvent(themeChangeEvent);
+                    }
+                }
+            });
         }
     }
     
@@ -61,8 +156,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-=======
->>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc
     // Tabs functionality
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabPanels = document.querySelectorAll('.tab-panel');
@@ -116,17 +209,11 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const codeBlock = this.closest('.code-block');
             const code = codeBlock.querySelector('code').innerText;
-<<<<<<< HEAD
               navigator.clipboard.writeText(code).then(() => {
-=======
-            
-            navigator.clipboard.writeText(code).then(() => {
->>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc
                 // Visual feedback
                 const originalIcon = this.innerHTML;
                 this.innerHTML = '<i class="fas fa-check"></i>';
                 
-<<<<<<< HEAD
                 // Show notification
                 const notification = document.createElement('div');
                 notification.className = 'copy-notification';
@@ -145,9 +232,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     notification.classList.remove('show');
                     setTimeout(() => document.body.removeChild(notification), 300);
-=======
-                setTimeout(() => {
->>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc
                     this.innerHTML = originalIcon;
                 }, 2000);
             }).catch(err => {

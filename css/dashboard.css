@@ -13,16 +13,49 @@
     --text-color: #37474f;
     --border-radius: 8px;
     --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --card-bg: #ffffff;
+    --card-border: rgba(0, 0, 0, 0.05);
+    --dashboard-bg: #f8f9fa;
+    --header-bg: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
+    --footer-bg: var(--dark-color);
+    --footer-text: #b0bec5;
+}
+
+/* Dark mode variables */
+html.dark-mode, .dashboard-dark-mode, .dark-mode .dashboard-body {
+    --primary-color: #42a5f5;
+    --primary-dark: #2196f3;
+    --secondary-color: #4db6ac;
+    --secondary-dark: #26a69a;
+    --dark-color: #eceff1;
+    --light-color: #263238;
+    --grey-color: #b0bec5;
+    --text-color: #eceff1;
+    --card-bg: #1e1e1e;
+    --card-border: rgba(255, 255, 255, 0.05);
+    --dashboard-bg: #121212;
+    --header-bg: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+    --footer-bg: #121212;
+    --footer-text: #78909c;
+    --box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    --hover-bg: #2c2c2c;
+    --input-bg: #2c2c2c;
+    --input-border: rgba(255, 255, 255, 0.1);
+    --input-text: #eceff1;
 }
 
 .dashboard-body {
-    background-color: #f8f9fa;
+    background-color: var(--dashboard-bg);
     font-family: 'Roboto', sans-serif;
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    min-height: 100vh;
 }
 
 .dashboard-header {
-    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
+    background: var(--header-bg);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: background 0.3s ease;
 }
 
 .dashboard-container {
@@ -33,8 +66,10 @@
     border: none;
     border-radius: var(--border-radius);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
     overflow: hidden;
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
 }
 
 .card:hover {
@@ -42,21 +77,125 @@
 }
 
 .card-header {
-    background-color: white;
-    border-bottom: 1px solid #eee;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--card-border);
     padding: 15px 20px;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .card-footer {
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--card-border);
     padding: 10px 20px;
+    background-color: var(--card-bg);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .card-title {
     margin-bottom: 0;
     font-weight: 500;
-    color: var(--dark-color);
+    color: var(--text-color);
     font-size: 1.15rem;
+    transition: color 0.3s ease;
+}
+
+/* Theme toggle button for dashboard */
+.dashboard-theme-toggle {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 1000;
+    background-color: var(--card-bg);
+    border: none;
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.3s ease;
+}
+
+.dashboard-theme-toggle:hover {
+    background-color: var(--primary-color);
+}
+
+.dashboard-theme-toggle i {
+    font-size: 1.2rem;
+    color: var(--text-color);
+}
+
+/* Dark mode specific styles */
+.dashboard-dark-mode .card, 
+.dark-mode .dashboard-body .card {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.dashboard-dark-mode .card:hover, 
+.dark-mode .dashboard-body .card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.dashboard-dark-mode .status-indicator,
+.dark-mode .dashboard-body .status-indicator {
+    background-color: rgba(66, 165, 245, 0.15);
+}
+
+.dashboard-dark-mode .service-card,
+.dark-mode .dashboard-body .service-card {
+    background-color: #1a1a1a;
+    transition: all 0.3s ease;
+}
+
+.dashboard-dark-mode .service-card:hover,
+.dark-mode .dashboard-body .service-card:hover {
+    background-color: #252525;
+    transform: translateY(-2px);
+}
+
+/* Dark mode inputs and selects */
+.dashboard-dark-mode input,
+.dashboard-dark-mode select,
+.dashboard-dark-mode textarea,
+.dark-mode .dashboard-body input,
+.dark-mode .dashboard-body select,
+.dark-mode .dashboard-body textarea {
+    background-color: var(--input-bg, #2c2c2c);
+    border-color: var(--input-border, rgba(255, 255, 255, 0.1));
+    color: var(--input-text, #eceff1);
+}
+
+/* Dark mode buttons */
+.dashboard-dark-mode .btn-outline-light,
+.dark-mode .dashboard-body .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.dashboard-dark-mode .btn-outline-light:hover,
+.dark-mode .dashboard-body .btn-outline-light:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode toast notification */
+.dashboard-dark-mode .toast-notification,
+.dark-mode .dashboard-body .toast-notification {
+    background-color: #2c2c2c;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-color);
+}
+
+/* Dashboard code blocks in dark mode */
+.dashboard-dark-mode pre,
+.dashboard-dark-mode code,
+.dark-mode .dashboard-body pre,
+.dark-mode .dashboard-body code {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Status Indicator */
@@ -68,6 +207,7 @@
     border-radius: 50%;
     background-color: rgba(30, 136, 229, 0.1);
     margin-bottom: 10px;
+    transition: background-color 0.3s ease;
 }
 
 .status-icon {
@@ -195,6 +335,13 @@
 
 .dashboard-footer a:hover {
     color: white;
+}
+
+/* HTML element for dashboard */
+html.dashboard-html {
+    background-color: var(--dashboard-bg);
+    transition: background-color 0.3s ease;
+    height: 100%;
 }
 
 /* Responsive adjustments */

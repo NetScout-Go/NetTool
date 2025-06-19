@@ -1,15 +1,103 @@
 // Dashboard JavaScript
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {    // Apply theme based on user preference
+    applyDashboardTheme();
+    
     // Initialize the network traffic chart
     initTrafficChart();
     
     // Set up event listeners
-    document.getElementById('runSpeedTestBtn').addEventListener('click', runSpeedTest);
+    document.getElementById('runSpeedTestBtn')?.addEventListener('click', runSpeedTest);
+    
+    // Listen for theme changes from main.js
+    document.addEventListener('themechange', function(e) {
+        // Apply dashboard theme changes
+        applyDashboardTheme();
+    });
     
     // Simulate some live updates
     startLiveUpdates();
 });
+
+// Apply theme to dashboard-specific elements
+function applyDashboardTheme() {
+    const isDarkMode = document.body.classList.contains('dark-mode') || 
+                       localStorage.getItem('theme') === 'dark';
+    
+    // Apply dashboard-specific dark mode class
+    if (isDarkMode) {
+        document.body.classList.add('dashboard-dark-mode');
+    } else {
+        document.body.classList.remove('dashboard-dark-mode');
+    }
+    
+    // Update chart theme if exists
+    if (window.trafficChart) {
+        const chartTheme = isDarkMode ? 
+            {
+                color: '#eceff1',
+                gridColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: '#1e1e1e',
+                borderColor: {
+                    download: '#42a5f5',  // Adjusted for dark mode
+                    upload: '#4db6ac'     // Adjusted for dark mode
+                },
+                backgroundColor: {
+                    download: 'rgba(66, 165, 245, 0.1)',
+                    upload: 'rgba(77, 182, 172, 0.1)'
+                }
+            } : 
+            {
+                color: '#37474f',
+                gridColor: 'rgba(0, 0, 0, 0.1)',
+                backgroundColor: '#ffffff',
+                borderColor: {
+                    download: '#1e88e5',
+                    upload: '#26a69a'
+                },
+                backgroundColor: {
+                    download: 'rgba(30, 136, 229, 0.1)',
+                    upload: 'rgba(38, 166, 154, 0.1)'
+                }
+            };
+        
+        // Update chart colors
+        window.trafficChart.options.scales.y.grid.color = chartTheme.gridColor;
+        window.trafficChart.options.scales.x.grid.color = chartTheme.gridColor;
+        window.trafficChart.options.scales.y.ticks.color = chartTheme.color;
+        window.trafficChart.options.scales.x.ticks.color = chartTheme.color;
+        window.trafficChart.options.plugins.legend.labels.color = chartTheme.color;
+        window.trafficChart.options.plugins.title.color = chartTheme.color;
+        
+        // Update dataset colors
+        window.trafficChart.data.datasets[0].borderColor = chartTheme.borderColor.download;
+        window.trafficChart.data.datasets[0].backgroundColor = chartTheme.backgroundColor.download;
+        window.trafficChart.data.datasets[1].borderColor = chartTheme.borderColor.upload;
+        window.trafficChart.data.datasets[1].backgroundColor = chartTheme.backgroundColor.upload;
+        
+        window.trafficChart.update();
+    }
+    
+    // Update card styles
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+        if (isDarkMode) {
+            card.classList.add('dark-card');
+        } else {
+            card.classList.remove('dark-card');
+        }
+    });
+    
+    // Update status indicators for better dark mode visibility
+    const statusIndicators = document.querySelectorAll('.status-indicator');
+    statusIndicators.forEach(indicator => {
+        if (isDarkMode) {
+            indicator.style.backgroundColor = 'rgba(66, 165, 245, 0.15)';
+        } else {
+            indicator.style.backgroundColor = 'rgba(30, 136, 229, 0.1)';
+        }
+    });
+}
 
 // Initialize the network traffic chart
 function initTrafficChart() {
@@ -27,6 +115,40 @@ function initTrafficChart() {
     const downloadData = [2.1, 2.5, 3.2, 5.1, 4.3, 3.8, 3.5, 4.2, 3.9, 4.5];
     const uploadData = [0.8, 0.9, 1.2, 1.5, 1.3, 1.1, 0.9, 1.2, 1.4, 1.1];
     
+    // Determine if we're in dark mode
+    const isDarkMode = document.body.classList.contains('dark-mode') || 
+                        document.body.classList.contains('dashboard-dark-mode') ||
+                        localStorage.getItem('theme') === 'dark';
+    
+    // Set theme-specific colors
+    const chartTheme = isDarkMode ? 
+        {
+            color: '#eceff1',
+            gridColor: 'rgba(255, 255, 255, 0.1)',
+            backgroundColor: '#1e1e1e',
+            borderColor: {
+                download: '#42a5f5',  // Adjusted for dark mode
+                upload: '#4db6ac'     // Adjusted for dark mode
+            },
+            backgroundColor: {
+                download: 'rgba(66, 165, 245, 0.1)',
+                upload: 'rgba(77, 182, 172, 0.1)'
+            }
+        } : 
+        {
+            color: '#37474f',
+            gridColor: 'rgba(0, 0, 0, 0.1)',
+            backgroundColor: '#ffffff',
+            borderColor: {
+                download: '#1e88e5',
+                upload: '#26a69a'
+            },
+            backgroundColor: {
+                download: 'rgba(30, 136, 229, 0.1)',
+                upload: 'rgba(38, 166, 154, 0.1)'
+            }
+        };
+    
     // Create the chart
     const trafficChart = new Chart(ctx, {
         type: 'line',
@@ -36,8 +158,8 @@ function initTrafficChart() {
                 {
                     label: 'Download (Mbps)',
                     data: downloadData,
-                    borderColor: '#1e88e5',
-                    backgroundColor: 'rgba(30, 136, 229, 0.1)',
+                    borderColor: chartTheme.borderColor.download,
+                    backgroundColor: chartTheme.backgroundColor.download,
                     borderWidth: 2,
                     fill: true,
                     tension: 0.4
@@ -45,8 +167,8 @@ function initTrafficChart() {
                 {
                     label: 'Upload (Mbps)',
                     data: uploadData,
-                    borderColor: '#26a69a',
-                    backgroundColor: 'rgba(38, 166, 154, 0.1)',
+                    borderColor: chartTheme.borderColor.upload,
+                    backgroundColor: chartTheme.backgroundColor.upload,
                     borderWidth: 2,
                     fill: true,
                     tension: 0.4
@@ -59,10 +181,16 @@ function initTrafficChart() {
             plugins: {
                 legend: {
                     position: 'top',
+                    labels: {
+                        color: chartTheme.color
+                    }
                 },
                 tooltip: {
                     mode: 'index',
-                    intersect: false
+                    intersect: false,
+                    backgroundColor: chartTheme.backgroundColor,
+                    titleColor: chartTheme.color,
+                    bodyColor: chartTheme.color
                 }
             },
             scales: {
@@ -70,13 +198,27 @@ function initTrafficChart() {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Mbps'
+                        text: 'Mbps',
+                        color: chartTheme.color
+                    },
+                    grid: {
+                        color: chartTheme.gridColor
+                    },
+                    ticks: {
+                        color: chartTheme.color
                     }
                 },
                 x: {
                     title: {
                         display: true,
-                        text: 'Time'
+                        text: 'Time',
+                        color: chartTheme.color
+                    },
+                    grid: {
+                        color: chartTheme.gridColor
+                    },
+                    ticks: {
+                        color: chartTheme.color
                     }
                 }
             }
@@ -112,10 +254,11 @@ function runSpeedTest() {
 
 // Show a toast notification (would require Bootstrap toast or custom implementation)
 function showToast(title, message) {
-    // This is just a placeholder - in a real app, you'd show a proper toast notification
-    console.log(`Toast: ${title} - ${message}`);
+    // Remove any existing toasts
+    const existingToasts = document.querySelectorAll('.toast-notification');
+    existingToasts.forEach(toast => toast.remove());
     
-    // For demo purposes, create a simple alert
+    // Create a new toast
     const toast = document.createElement('div');
     toast.className = 'toast-notification';
     toast.innerHTML = `
@@ -126,6 +269,22 @@ function showToast(title, message) {
             ${message}
         </div>
     `;
+    
+    // Add to DOM
+    document.body.appendChild(toast);
+    
+    // Position in the bottom right corner
+    toast.style.bottom = '20px';
+    toast.style.right = '20px';
+    
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Auto-hide after delay
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
     
     // Add styles for the toast
     toast.style.position = 'fixed';

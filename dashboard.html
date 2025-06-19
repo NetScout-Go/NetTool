@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dashboard-html">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>NetTool | Dashboard Demo</title>
@@ -17,6 +17,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="dashboard-body">
+    <!-- Theme Toggle Button -->
+    <button id="theme-toggle" class="theme-toggle dashboard-theme-toggle" aria-label="Toggle dark/light mode">
+        <i class="fas fa-moon"></i>
+        <i class="fas fa-sun"></i>
+    </button>
+    
     <header class="dashboard-header">
         <nav class="navbar navbar-expand-lg navbar-dark">
             <div class="container-fluid">                <a href="index.html" class="navbar-brand">
@@ -477,10 +483,11 @@
                     </a>
                 </div>
             </div>
-        </div>
-    </footer>
+        </div>    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/main.js"></script>
     <script src="js/dashboard.js"></script>
 </body>
 </html>
