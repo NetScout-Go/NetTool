@@ -23,6 +23,14 @@
         {
           "value": "supernet",
           "label": "Calculate Supernet"
+        },
+        {
+          "value": "aggregate",
+          "label": "Aggregate CIDRs"
+        },
+        {
+          "value": "conflict_detect",
+          "label": "Detect Network Conflicts"
         }
       ]
     },

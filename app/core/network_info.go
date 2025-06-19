@@ -3,7 +3,6 @@ package core
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"net"
 	"net/http"
 	"os/exec"
@@ -713,8 +712,6 @@ func MeasureHTTPLatency() float64 {
 
 // measureServiceLatency measures latency to a service by hostname
 func measureServiceLatency(hostname string) float64 {
-	fmt.Printf("Measuring latency to %s\n", hostname)
-
 	// Use ping with a timeout to avoid hanging
 	cmd := exec.Command("ping", "-c", "1", "-w", "2", hostname)
 	var out bytes.Buffer
@@ -723,13 +720,11 @@ func measureServiceLatency(hostname string) float64 {
 	// Execute ping command
 	err := cmd.Run()
 	if err != nil {
-		fmt.Printf("Error pinging %s: %v\n", hostname, err)
 		return 0
 	}
 
 	// Parse the output for average latency
 	output := out.String()
-	fmt.Printf("Ping output for %s: %s\n", hostname, output)
 
 	// Try to parse the time from the first successful ping
 	timePattern := regexp.MustCompile(`time=(\d+\.?\d*) ms`)
@@ -737,7 +732,6 @@ func measureServiceLatency(hostname string) float64 {
 	if len(matches) > 1 {
 		latency, err := strconv.ParseFloat(matches[1], 64)
 		if err == nil {
-			fmt.Printf("Parsed latency for %s: %.2f ms\n", hostname, latency)
 			return latency
 		}
 	}
@@ -745,7 +739,6 @@ func measureServiceLatency(hostname string) float64 {
 	// Fallback to traditional min/avg/max parsing
 	avgIndex := strings.Index(output, "min/avg/max/mdev")
 	if avgIndex == -1 {
-		fmt.Printf("Could not find min/avg/max in output for %s\n", hostname)
 		return 0
 	}
 
@@ -757,7 +750,6 @@ func measureServiceLatency(hostname string) float64 {
 			if len(values) >= 2 {
 				avgLatency, err := strconv.ParseFloat(values[1], 64)
 				if err == nil {
-					fmt.Printf("Parsed avg latency for %s: %.2f ms\n", hostname, avgLatency)
 					return avgLatency
 				}
 			}
@@ -765,7 +757,6 @@ func measureServiceLatency(hostname string) float64 {
 		}
 	}
 
-	fmt.Printf("Failed to parse latency for %s\n", hostname)
 	return 0
 }
 

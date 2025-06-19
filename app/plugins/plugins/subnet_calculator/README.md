@@ -1,95 +1,131 @@
 # Subnet Calculator Plugin
 
-A comprehensive IP subnet calculator for NetTool that helps with analyzing network addresses, calculating subnet masks, and planning network segmentation.
+The Subnet Calculator is a comprehensive networking tool for analyzing, planning, and managing network addressing. It provides detailed subnet information and allows for subnet division and supernetting operations.
 
 ## Features
 
-- **Subnet Calculation**: Calculate detailed information about IPv4 and IPv6 subnets including network address, broadcast address, usable hosts, and more.
-- **Subnet Division**: Divide a subnet into multiple smaller equal-sized subnets.
-- **Supernetting**: Calculate the smallest supernet that contains multiple IP addresses or subnets.
-- **Binary Representation**: View binary representations of IP addresses and subnet masks.
-- **Reverse DNS Lookup Information**: Get reverse DNS lookup zone information for IP addresses.
+### Subnet Calculation
+
+- Calculate detailed information about IPv4 and IPv6 subnets
+- Display network/broadcast addresses, first/last hosts, and usable host count
+- Show binary representations, address class, and reverse DNS information
+- Determine if an address is private or public
+
+### Subnet Division
+
+- Divide a network into multiple equal-sized subnets
+- Support for both IPv4 and IPv6 subnets
+- Automatic calculation of required prefix length
+
+### Supernetting
+
+- Calculate the smallest supernet that contains multiple IP addresses or networks
+- Find common network prefix across disparate networks
+- Support for IPv4 (full) and IPv6 (basic)
+
+### CIDR Aggregation
+
+- Find the minimum number of CIDR blocks that can represent a list of IP addresses
+- Optimize route tables by reducing the number of routes needed
+- Combine adjacent networks where possible
+- Support for both IPv4 and IPv6 (basic)
+
+### Network Conflict Detection
+
+- Identify overlapping networks in a list of subnets
+- Detect potential IP address conflicts
+- Validate network segmentation designs
+- Support for both IPv4 and IPv6
 
 ## Usage
 
-### Calculate Subnet Information
+### Calculate Subnet
 
-```json
-{
-  "action": "calculate",
-  "address": "192.168.1.0/24"
-}
+```bash
+Action: calculate
+IP Address/CIDR: 192.168.1.0/24
+Subnet Mask: (optional if CIDR is provided)
+Subnet Bits: 0 (optional, for additional subnetting)
 ```
 
-Additional parameters:
-- `mask`: Optional subnet mask (e.g., "255.255.255.0" or "24") if not included in the address
-- `subnet_bits`: Optional additional subnet bits to add to the prefix length
+### Divide Subnet
 
-### Divide a Subnet
-
-```json
-{
-  "action": "divide",
-  "address": "192.168.1.0/24",
-  "num_subnets": 4
-}
+```bash
+Action: divide
+IP Address/CIDR: 192.168.1.0/24
+Subnet Mask: (optional if CIDR is provided)
+Number of Subnets: 4 (how many subnets to create)
 ```
-
-This will divide the 192.168.1.0/24 subnet into 4 equal-sized subnets.
 
 ### Calculate Supernet
 
-```json
-{
-  "action": "supernet",
-  "ip_list": [
-    "192.168.1.0/24",
-    "192.168.2.0/24",
-    "192.168.3.0/24",
-    "192.168.4.0/24"
-  ]
-}
+```bash
+Action: supernet
+IP Address List: 192.168.1.0/24,192.168.2.0/24
 ```
 
-This will calculate the smallest supernet (e.g., 192.168.0.0/22) that contains all the specified subnets.
+### Aggregate CIDRs
 
-## Response Example
-
-```json
-{
-  "action": "calculate",
-  "address": "192.168.1.0/24",
-  "info": {
-    "input_address": "192.168.1.0",
-    "cidr": "192.168.1.0/24",
-    "network_address": "192.168.1.0",
-    "broadcast_address": "192.168.1.255",
-    "netmask": "255.255.255.0",
-    "wildcard_mask": "0.0.0.255",
-    "first_host": "192.168.1.1",
-    "last_host": "192.168.1.254",
-    "total_hosts": 256,
-    "usable_hosts": 254,
-    "prefix_length": 24,
-    "mask_bits": "11111111111111111111111100000000",
-    "mask_decimal": 4294967040,
-    "address_class": "C",
-    "is_private": true,
-    "type": "IPv4",
-    "binary_address": "11000000101010000000000100000000",
-    "binary_mask": "11111111111111111111111100000000",
-    "subnet_bits": 24,
-    "host_bits": 8,
-    "address_range": "192.168.1.0 - 192.168.1.255",
-    "reverse_dns_lookup": "0.1.168.192.in-addr.arpa",
-    "reverse_dns_postfix": "1.168.192.in-addr.arpa"
-  },
-  "mask": "24",
-  "subnet_bits": 0,
-  "timestamp": "2025-06-19T12:34:56Z"
-}
+```bash
+Action: aggregate
+IP Address List: 192.168.1.0/24,192.168.2.0/24,192.168.3.0/24,192.168.4.0/24
 ```
 
-## License
+### Detect Network Conflicts
 
-MIT
+```bash
+Action: conflict_detect
+IP Address List: 192.168.1.0/24,192.168.1.128/25,192.168.2.0/24
+```
+
+## Technical Details
+
+- Supports both IPv4 and IPv6 addresses
+- Handles CIDR notation and traditional subnet masks
+- Provides detailed subnet analysis including:
+  - Network/broadcast addresses
+  - First/last usable hosts
+  - Total and usable host counts
+  - Binary representations
+  - Address class and type information
+  - Reverse DNS lookup zones
+
+## Examples
+
+### Calculate a Subnet
+
+For IP 192.168.1.0/24:
+
+- Network: 192.168.1.0
+- Broadcast: 192.168.1.255
+- Netmask: 255.255.255.0
+- First Host: 192.168.1.1
+- Last Host: 192.168.1.254
+- Usable Hosts: 254
+
+### Divide a Subnet
+
+Dividing 192.168.1.0/24 into 4 subnets:
+
+- 192.168.1.0/26 (64 hosts)
+- 192.168.1.64/26 (64 hosts)
+- 192.168.1.128/26 (64 hosts)
+- 192.168.1.192/26 (64 hosts)
+
+### Calculate a Supernet
+
+For 192.168.1.0/24 and 192.168.2.0/24:
+
+- Supernet: 192.168.0.0/23
+
+### Aggregate CIDRs
+
+For 192.168.1.0/24, 192.168.2.0/24, 192.168.3.0/24, and 192.168.4.0/24:
+
+- Aggregated CIDRs: 192.168.0.0/22 (single CIDR block)
+
+### Detect Network Conflicts
+
+For 192.168.1.0/24, 192.168.1.128/25, and 192.168.2.0/24:
+
+- Conflict detected: 192.168.1.0/24 overlaps with 192.168.1.128/25

@@ -1,12 +1,14 @@
 package subnet_calculator
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math"
 	"math/bits"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -84,6 +86,30 @@ func Execute(params map[string]interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("at least two IP addresses are required for supernet action")
 		}
 		return calculateSupernet(ips, timestamp)
+	case "aggregate":
+		// Convert interface slice to string slice
+		ips := make([]string, 0, len(ipList))
+		for _, ip := range ipList {
+			if ipStr, ok := ip.(string); ok {
+				ips = append(ips, ipStr)
+			}
+		}
+		if len(ips) < 2 {
+			return nil, fmt.Errorf("at least two IP addresses are required for aggregate action")
+		}
+		return aggregateCIDRs(ips, timestamp)
+	case "conflict_detect":
+		// Convert interface slice to string slice
+		ips := make([]string, 0, len(ipList))
+		for _, ip := range ipList {
+			if ipStr, ok := ip.(string); ok {
+				ips = append(ips, ipStr)
+			}
+		}
+		if len(ips) < 2 {
+			return nil, fmt.Errorf("at least two IP addresses are required for conflict detection")
+		}
+		return networkConflictDetector(ips, timestamp)
 	default:
 		return nil, fmt.Errorf("unknown action: %s", action)
 	}
@@ -243,9 +269,49 @@ func divideSubnet(ipAddress, mask string, numSubnets int, timestamp string) (int
 			subnets = append(subnets, fmt.Sprintf("%s/%d", subnetIP.String(), newPrefixLength))
 		}
 	} else {
-		// IPv6 processing would go here
-		// For now, we'll return an error
-		return nil, fmt.Errorf("IPv6 subnet division not yet implemented")
+		// IPv6 processing
+		_, bits := baseIPNet.Mask.Size()
+
+		// Create a subnet template
+		subnetTemplate := make(net.IP, len(baseIP))
+		copy(subnetTemplate, baseIP)
+
+		// Generate the subnets
+		for i := 0; i < 1<<requiredBits && i < numSubnets; i++ {
+			// Create a copy of the template for this subnet
+			subnetIP := make(net.IP, len(subnetTemplate))
+			copy(subnetIP, subnetTemplate)
+
+			// Calculate the subnet offset and apply it to the IP
+			// We need to identify which bytes and bits within those bytes to modify
+			byteIndex := (bits - newPrefixLength) / 8
+			bitOffset := (bits - newPrefixLength) % 8
+
+			// If we need to modify multiple bytes
+			offset := i
+			// Start from the least significant bytes that need modification
+			for j := len(subnetIP) - 1; j >= 0 && byteIndex > 0; j-- {
+				if offset == 0 {
+					break
+				}
+
+				// Calculate how many bits we can modify in this byte
+				bitsInByte := 8
+				if j == len(subnetIP)-byteIndex {
+					bitsInByte = bitOffset
+				}
+
+				// Calculate the value to add to this byte
+				byteMask := (1 << bitsInByte) - 1
+				byteValue := offset & byteMask
+				subnetIP[j] |= byte(byteValue)
+
+				// Shift the offset for the next byte
+				offset >>= bitsInByte
+			}
+
+			subnets = append(subnets, fmt.Sprintf("%s/%d", subnetIP.String(), newPrefixLength))
+		}
 	}
 
 	// Add subnets to the info
@@ -357,6 +423,175 @@ func calculateSupernet(ipAddresses []string, timestamp string) (interface{}, err
 	}
 
 	return result, nil
+}
+
+// aggregateCIDRs implements CIDR aggregation to find the minimum set of CIDR blocks
+// that can represent a list of IP addresses or networks
+func aggregateCIDRs(ipAddresses []string, timestamp string) (interface{}, error) {
+	if len(ipAddresses) < 1 {
+		return nil, fmt.Errorf("at least one IP address is required for CIDR aggregation")
+	}
+
+	// Parse and validate IP addresses or networks
+	ipNets := make([]*net.IPNet, 0, len(ipAddresses))
+	isIPv4 := true
+
+	for _, addrStr := range ipAddresses {
+		// Ensure the address has CIDR notation
+		if !strings.Contains(addrStr, "/") {
+			// Assume it's a single IP and add the max prefix
+			if net.ParseIP(addrStr).To4() != nil {
+				addrStr = addrStr + "/32"
+			} else {
+				addrStr = addrStr + "/128"
+				isIPv4 = false
+			}
+		}
+
+		_, ipNet, err := net.ParseCIDR(addrStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid IP address or CIDR: %s (%s)", addrStr, err.Error())
+		}
+
+		// Check for IP version consistency
+		if (ipNet.IP.To4() != nil) != isIPv4 {
+			return nil, fmt.Errorf("mixing IPv4 and IPv6 addresses is not supported")
+		}
+
+		ipNets = append(ipNets, ipNet)
+	}
+
+	// Sort networks by IP address
+	sort.Slice(ipNets, func(i, j int) bool {
+		return bytes.Compare(ipNets[i].IP, ipNets[j].IP) < 0
+	})
+
+	// Merge adjacent or overlapping networks
+	aggregatedNets := aggregateAdjacentNetworks(ipNets, isIPv4)
+
+	// Create result strings for each aggregated CIDR
+	resultCIDRs := make([]string, 0, len(aggregatedNets))
+	for _, n := range aggregatedNets {
+		ones, _ := n.Mask.Size()
+		resultCIDRs = append(resultCIDRs, fmt.Sprintf("%s/%d", n.IP.String(), ones))
+	}
+
+	// Build the response
+	result := map[string]interface{}{
+		"action":            "aggregate",
+		"input_addresses":   ipAddresses,
+		"aggregated_cidrs":  resultCIDRs,
+		"original_count":    len(ipAddresses),
+		"aggregated_count":  len(resultCIDRs),
+		"reduction_percent": 100 - (float64(len(resultCIDRs)) / float64(len(ipAddresses)) * 100),
+		"ip_version":        map[bool]string{true: "IPv4", false: "IPv6"}[isIPv4],
+		"timestamp":         timestamp,
+	}
+
+	return result, nil
+}
+
+// aggregateAdjacentNetworks combines adjacent networks into larger ones where possible
+func aggregateAdjacentNetworks(nets []*net.IPNet, isIPv4 bool) []*net.IPNet {
+	if len(nets) <= 1 {
+		return nets
+	}
+
+	// Function to check if two networks can be merged
+	canMerge := func(a, b *net.IPNet) bool {
+		// They must have the same prefix length
+		aOnes, aBits := a.Mask.Size()
+		bOnes, bBits := b.Mask.Size()
+
+		if aOnes != bOnes || aBits != bBits {
+			return false
+		}
+
+		// For networks to be mergeable, they must be adjacent
+		// and their combined network must align with a CIDR boundary
+
+		// Convert IPs to integers for easier comparison
+		var aInt, bInt uint64
+		if isIPv4 {
+			aInt = uint64(ipToUint32(a.IP.To4()))
+			bInt = uint64(ipToUint32(b.IP.To4()))
+		} else {
+			// For IPv6, we'll use the first 8 bytes for simplicity
+			// This is not a complete implementation for IPv6
+			aInt = binary.BigEndian.Uint64(a.IP[:8])
+			bInt = binary.BigEndian.Uint64(b.IP[:8])
+		}
+
+		// Calculate size of each network (in address space)
+		networkSize := uint64(1) << (uint64(aBits) - uint64(aOnes))
+
+		// Networks are adjacent if one starts where the other ends
+		isAdjacent := (aInt+networkSize == bInt) || (bInt+networkSize == aInt)
+		if !isAdjacent {
+			return false
+		}
+
+		// To be mergeable into a valid CIDR, the lower address must be
+		// a multiple of twice the network size
+		lowerInt := aInt
+		if bInt < aInt {
+			lowerInt = bInt
+		}
+
+		return (lowerInt % (networkSize * 2)) == 0
+	}
+
+	// Function to merge two networks
+	mergeNets := func(a, b *net.IPNet) *net.IPNet {
+		// When merging, we decrease the prefix length by 1
+		aOnes, aBits := a.Mask.Size()
+		newOnes := aOnes - 1
+
+		// Find the lower of the two networks
+		var lowerIP net.IP
+		if bytes.Compare(a.IP, b.IP) < 0 {
+			lowerIP = a.IP
+		} else {
+			lowerIP = b.IP
+		}
+
+		// Create a new network with the combined prefix
+		newMask := net.CIDRMask(newOnes, aBits)
+		return &net.IPNet{
+			IP:   lowerIP.Mask(newMask),
+			Mask: newMask,
+		}
+	}
+
+	// Continue merging networks until no more merges are possible
+	result := make([]*net.IPNet, len(nets))
+	copy(result, nets)
+
+	for {
+		merged := false
+
+		for i := 0; i < len(result)-1; i++ {
+			if canMerge(result[i], result[i+1]) {
+				// Merge these two networks
+				merged = true
+
+				// Replace the first with the merged network and remove the second
+				mergedNet := mergeNets(result[i], result[i+1])
+				result[i] = mergedNet
+				result = append(result[:i+1], result[i+2:]...)
+
+				// Start over since we modified the list
+				break
+			}
+		}
+
+		// If no merges happened in this pass, we're done
+		if !merged {
+			break
+		}
+	}
+
+	return result
 }
 
 // calculateSubnetInfo calculates detailed information about a subnet
@@ -586,4 +821,123 @@ func reverseIPv6Nibbles(expandedIP string) string {
 		reversed.WriteByte(expandedIP[i])
 	}
 	return reversed.String()
+}
+
+// networkConflictDetector identifies overlapping networks
+func networkConflictDetector(ipAddresses []string, timestamp string) (interface{}, error) {
+	if len(ipAddresses) < 2 {
+		return nil, fmt.Errorf("at least two IP addresses are required for conflict detection")
+	}
+
+	// Parse and validate IP addresses or networks
+	ipNets := make([]*net.IPNet, 0, len(ipAddresses))
+	ipNetStrings := make([]string, 0, len(ipAddresses))
+	isIPv4 := true
+
+	for _, addrStr := range ipAddresses {
+		// Ensure the address has CIDR notation
+		if !strings.Contains(addrStr, "/") {
+			// Assume it's a single IP and add the max prefix
+			if net.ParseIP(addrStr).To4() != nil {
+				addrStr = addrStr + "/32"
+			} else {
+				addrStr = addrStr + "/128"
+				isIPv4 = false
+			}
+		}
+
+		_, ipNet, err := net.ParseCIDR(addrStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid IP address or CIDR: %s (%s)", addrStr, err.Error())
+		}
+
+		// Check for IP version consistency
+		if (ipNet.IP.To4() != nil) != isIPv4 {
+			return nil, fmt.Errorf("mixing IPv4 and IPv6 addresses is not supported")
+		}
+
+		ipNets = append(ipNets, ipNet)
+		ipNetStrings = append(ipNetStrings, addrStr)
+	}
+
+	// Find conflicts
+	conflicts := make([]map[string]interface{}, 0)
+
+	for i := 0; i < len(ipNets); i++ {
+		for j := i + 1; j < len(ipNets); j++ {
+			// Check if networks overlap
+			if networksOverlap(ipNets[i], ipNets[j]) {
+				conflict := map[string]interface{}{
+					"network1": ipNetStrings[i],
+					"network2": ipNetStrings[j],
+					"overlap":  true,
+					"details":  fmt.Sprintf("%s overlaps with %s", ipNetStrings[i], ipNetStrings[j]),
+				}
+				conflicts = append(conflicts, conflict)
+			}
+		}
+	}
+
+	// Build the response
+	result := map[string]interface{}{
+		"action":         "conflict_detect",
+		"input_networks": ipNetStrings,
+		"conflicts":      conflicts,
+		"conflict_count": len(conflicts),
+		"has_conflicts":  len(conflicts) > 0,
+		"networks_count": len(ipNetStrings),
+		"ip_version":     map[bool]string{true: "IPv4", false: "IPv6"}[isIPv4],
+		"timestamp":      timestamp,
+	}
+
+	return result, nil
+}
+
+// networksOverlap checks if two networks have any overlapping IP addresses
+func networksOverlap(n1, n2 *net.IPNet) bool {
+	// If one network contains the IP of the other, they overlap
+	return n1.Contains(n2.IP) || n2.Contains(n1.IP)
+}
+
+// ExecuteAdapter adapts the input from the dashboard to the format expected by the plugin
+func executeAdapter(params map[string]interface{}) (interface{}, error) {
+	// Copy the parameters to avoid modifying the original
+	adaptedParams := make(map[string]interface{})
+	for k, v := range params {
+		adaptedParams[k] = v
+	}
+
+	// Handle action
+	action, _ := params["action"].(string)
+	adaptedParams["action"] = action
+
+	// Handle the IP list for supernet, aggregate, and conflict_detect actions
+	if action == "supernet" || action == "aggregate" || action == "conflict_detect" {
+		ipListStr, _ := params["ip_list"].(string)
+		if ipListStr != "" {
+			// Split the comma-separated string into a slice
+			ipList := strings.Split(ipListStr, ",")
+			// Convert to []interface{} as required by Execute
+			ipListInterface := make([]interface{}, len(ipList))
+			for i, ip := range ipList {
+				ipListInterface[i] = strings.TrimSpace(ip)
+			}
+			adaptedParams["ip_list"] = ipListInterface
+		}
+	}
+
+	// Call the original Execute function
+	return Execute(adaptedParams)
+}
+
+// Plugin registers this plugin with the plugin system
+// This is called by the plugin loader
+func Plugin() interface{} {
+	return map[string]interface{}{
+		"id":          "subnet_calculator",
+		"name":        "Subnet Calculator",
+		"description": "IP subnet calculator for analyzing network addresses, calculating subnet masks, and planning network segmentation",
+		"version":     "1.0.0",
+		"execute":     executeAdapter,
+	}
 }
