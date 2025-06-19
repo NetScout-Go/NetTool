@@ -1,17 +1,17 @@
-# NetScout-Pi Landing Page
+# NetTool Landing Page
 
-This is the landing page for the NetScout-Pi project, a comprehensive network diagnostic and monitoring tool designed specifically for Raspberry Pi devices.
+This is the landing page for the NetTool project, a comprehensive network diagnostic and monitoring tool designed specifically for Raspberry Pi devices.
 
 > [!warning]
 > The documentation has been made with AI assistance, I hate making documentation since this will be published for the semmer event by hackclub i thought it would be a good idea to use AI.
 
 ## About This Repository
 
-This repository contains the landing page for the NetScout-Pi project. It's a simple, static website built with HTML, CSS, and JavaScript that showcases the project's features and provides information on how to get started.
+This repository contains the landing page for the NetTool project. It's a simple, static website built with HTML, CSS, and JavaScript that showcases the project's features and provides information on how to get started.
 
 ## Deployment
 
-This site is deployed using GitHub Pages and can be accessed at [raf181.github.io/Netscout-Pi](https://raf181.github.io/Netscout-Pi).
+This site is deployed using GitHub Pages and can be accessed at [raf181.github.io/NetTool](https://raf181.github.io/NetTool).
 
 ### How to Deploy Updates
 
@@ -52,7 +52,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Main Projects (main branch)
 
 <<<<<<< HEAD
-- [NetScout-Pi](https://github.com/NetScout-Go/NetTool) - The main project repository
+- [NetTool](https://github.com/NetScout-Go/NetTool) - The main project repository
 =======
-- [NetScout-Pi](https://github.com/raf181/NetScout-Pi) - The main project repository
+- [NetTool](https://github.com/raf181/NetTool) - The main project repository
 >>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc
