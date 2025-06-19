@@ -51,4 +51,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Main Projects (main branch)
 
+<<<<<<< HEAD
 - [NetScout-Pi](https://github.com/NetScout-Go/NetTool) - The main project repository
+=======
+- [NetScout-Pi](https://github.com/raf181/NetScout-Pi) - The main project repository
+>>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc

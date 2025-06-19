@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+<<<<<<< HEAD
     // Theme toggle functionality
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
@@ -60,6 +61,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+=======
+>>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc
     // Tabs functionality
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabPanels = document.querySelectorAll('.tab-panel');
@@ -113,11 +116,17 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const codeBlock = this.closest('.code-block');
             const code = codeBlock.querySelector('code').innerText;
+<<<<<<< HEAD
               navigator.clipboard.writeText(code).then(() => {
+=======
+            
+            navigator.clipboard.writeText(code).then(() => {
+>>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc
                 // Visual feedback
                 const originalIcon = this.innerHTML;
                 this.innerHTML = '<i class="fas fa-check"></i>';
                 
+<<<<<<< HEAD
                 // Show notification
                 const notification = document.createElement('div');
                 notification.className = 'copy-notification';
@@ -136,6 +145,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     notification.classList.remove('show');
                     setTimeout(() => document.body.removeChild(notification), 300);
+=======
+                setTimeout(() => {
+>>>>>>> 23e0abb17037bd3c3e21fe67940741f35fcffefc
                     this.innerHTML = originalIcon;
                 }, 2000);
             }).catch(err => {
