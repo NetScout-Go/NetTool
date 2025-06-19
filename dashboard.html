@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetScout-Pi | Dashboard Demo</title>
+    <meta name="description" content="Network monitoring dashboard demo for NetScout-Pi.">
+    <link rel="icon" href="img/NetsScout-ICO.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="img/NetsScout-ICO.ico" type="image/x-icon">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dashboard-body">
+    <header class="dashboard-header">
+        <nav class="navbar navbar-expand-lg navbar-dark">
+            <div class="container-fluid">
+                <a href="index.html" class="navbar-brand">
+                    <img src="img/NetsScout-ICO.png" alt="NetScout-Pi Logo" class="logo-img d-inline-block align-text-top">
+                    <span>NetScout-Pi</span>
+                </a>                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" title="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#"><i class="bi bi-speedometer2"></i> Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#"><i class="bi bi-tools"></i> Tools</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#"><i class="bi bi-gear"></i> Settings</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#"><i class="bi bi-question-circle"></i> Help</a>
+                        </li>
+                    </ul>
+                    <div class="d-flex">                        <a href="https://github.com/NetScout-Go/NetTool" class="btn btn-outline-light btn-sm" target="_blank" rel="noopener noreferrer">
+                            <i class="fab fa-github"></i> GitHub
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container-fluid dashboard-container mt-4">
+        <!-- Quick Overview Cards -->
+        <div class="row mb-4">
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Connection Status</h5>
+                        <div class="text-center mb-3">
+                            <div class="status-indicator" id="connectionStatus">
+                                <i class="bi bi-wifi status-icon"></i>
+                                <span class="status-text">Connected</span>
+                            </div>
+                        </div>
+                        <div class="small text-muted">
+                            <div>Uptime: <span id="uptime">14:22:37</span></div>
+                            <div>Type: <span id="connectionType">Ethernet</span></div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex justify-content-between">
+                            <div class="small text-muted">
+                                <i class="bi bi-info-circle"></i> Connection overview
+                            </div>
+                            <div>
+                                <span class="realtime-indicator"></span> <span class="small">Live</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">IP Configuration</h5>
+                        <div class="small">
+                            <div class="row">
+                                <div class="col-5">IPv4:</div>
+                                <div class="col-7 text-end" id="ipv4Address">192.168.1.100</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-5">Subnet:</div>
+                                <div class="col-7 text-end" id="subnetMask">255.255.255.0</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-5">Gateway:</div>
+                                <div class="col-7 text-end" id="gateway">192.168.1.1</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-5">IPv6:</div>
+                                <div class="col-7 text-end text-truncate" id="ipv6Address">fe80::5c22:23ff:fe74:a01a</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex justify-content-between">
+                            <div class="small text-muted">
+                                <i class="bi bi-info-circle"></i> IP addressing
+                            </div>
+                            <div>
+                                <span class="realtime-indicator"></span> <span class="small">Live</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Connection Metrics</h5>
+                        <div class="small">
+                            <div class="row">
+                                <div class="col-6">Latency:</div>
+                                <div class="col-6 text-end" id="latency">24 ms</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">Packet Loss:</div>
+                                <div class="col-6 text-end" id="packetLoss">0%</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">Signal:</div>
+                                <div class="col-6 text-end" id="signalStrength">-67 dBm</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">Bandwidth:</div>
+                                <div class="col-6 text-end" id="bandwidth">100 Mbps</div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <button class="btn btn-sm btn-outline-primary w-100" id="runSpeedTestBtn">
+                                        <i class="bi bi-speedometer2"></i> Run Speed Test
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex justify-content-between">
+                            <div class="small text-muted">
+                                <i class="bi bi-info-circle"></i> Performance metrics
+                            </div>
+                            <div>
+                                <span class="realtime-indicator"></span> <span class="small">Live</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">DNS Settings</h5>
+                        <div class="small" id="dnsServers">
+                            <div class="row">
+                                <div class="col-5">Primary:</div>
+                                <div class="col-7 text-end">8.8.8.8</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-5">Secondary:</div>
+                                <div class="col-7 text-end">8.8.4.4</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-5">Status:</div>
+                                <div class="col-7 text-end"><span class="badge bg-success">Responsive</span></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-5">Resolver:</div>
+                                <div class="col-7 text-end">systemd-resolved</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex justify-content-between">
+                            <div class="small text-muted">
+                                <i class="bi bi-info-circle"></i> Name resolution
+                            </div>
+                            <div>
+                                <span class="realtime-indicator"></span> <span class="small">Live</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Traffic Graphs -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <h5 class="card-title mb-0">Network Traffic</h5>
+                        <div>
+                            <span class="realtime-indicator"></span> <span class="small">Live</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="traffic-chart-container">
+                            <canvas id="trafficChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Network Details in Two Columns -->
+        <div class="row mb-4">
+            <!-- Left Column: Interface Details -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Interface Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <th>Interface Name</th>
+                                    <td id="interfaceName">eth0</td>
+                                </tr>
+                                <tr>
+                                    <th>MAC Address</th>
+                                    <td id="macAddress">5E:22:23:74:A0:1A</td>
+                                </tr>
+                                <tr>
+                                    <th>Speed</th>
+                                    <td id="linkSpeed">1000 Mbps</td>
+                                </tr>
+                                <tr>
+                                    <th>Duplex</th>
+                                    <td id="duplex">Full</td>
+                                </tr>
+                                <tr>
+                                    <th>SSID</th>
+                                    <td id="ssid">N/A (Wired)</td>
+                                </tr>
+                                <tr>
+                                    <th>VLAN</th>
+                                    <td id="vlanInfo">None</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Traffic Statistics -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Traffic Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <th>Bytes Received</th>
+                                    <td id="bytesReceived">42.3 MB</td>
+                                </tr>
+                                <tr>
+                                    <th>Bytes Sent</th>
+                                    <td id="bytesSent">12.7 MB</td>
+                                </tr>
+                                <tr>
+                                    <th>Packets Received</th>
+                                    <td id="packetsReceived">285,432</td>
+                                </tr>
+                                <tr>
+                                    <th>Packets Sent</th>
+                                    <td id="packetsSent">183,901</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Latency -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <h5 class="card-title mb-0">Service Latency</h5>
+                        <div>
+                            <span class="realtime-indicator"></span> <span class="small">Live</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2 text-muted">Major Services</h6>
+                                        <div class="service-latency-grid">
+                                            <div class="service-card">
+                                                <div class="service-icon">
+                                                    <i class="bi bi-google"></i>
+                                                </div>
+                                                <div class="service-name">Google</div>
+                                                <div class="service-latency" id="googleLatency">18.2 ms</div>
+                                            </div>
+                                            <div class="service-card">
+                                                <div class="service-icon">
+                                                    <i class="bi bi-amazon"></i>
+                                                </div>
+                                                <div class="service-name">Amazon</div>
+                                                <div class="service-latency" id="amazonLatency">24.7 ms</div>
+                                            </div>
+                                            <div class="service-card">
+                                                <div class="service-icon">
+                                                    <i class="bi bi-cloud"></i>
+                                                </div>
+                                                <div class="service-name">Cloudflare</div>
+                                                <div class="service-latency" id="cloudflareLatency">15.3 ms</div>
+                                            </div>
+                                            <div class="service-card">
+                                                <div class="service-icon">
+                                                    <i class="bi bi-microsoft"></i>
+                                                </div>
+                                                <div class="service-name">Microsoft</div>
+                                                <div class="service-latency" id="microsoftLatency">29.1 ms</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2 text-muted">Network Services</h6>
+                                        <div class="row mb-2">
+                                            <div class="col-8">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="bi bi-hdd-network me-2"></i>
+                                                    <span>DNS Resolution</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-4 text-end">
+                                                <span id="dnsLatency">12.3 ms</span>
+                                            </div>
+                                        </div>                                        <div class="progress mb-3">                                            <div id="dnsLatencyBar" class="progress-bar" role="progressbar" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" title="DNS Latency">
+                                                <span class="visually-hidden">25% Complete</span>
+                                            </div>
+                                        </div>
+                                        <div class="row mb-2">
+                                            <div class="col-8">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="bi bi-globe me-2"></i>
+                                                    <span>HTTP Connection</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-4 text-end">
+                                                <span id="httpLatency">21.7 ms</span>
+                                            </div>
+                                        </div>                                        <div class="progress">
+                                            <div id="httpLatencyBar" class="progress-bar" role="progressbar" aria-valuenow="45" aria-valuemin="0" aria-valuemax="100" title="HTTP Latency">
+                                                <span class="visually-hidden">45% Complete</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ARP Table -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">IP Neighbor Table (ARP)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>IP Address</th>
+                                        <th>MAC Address</th>
+                                        <th>Interface</th>
+                                        <th>State</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="arpTable">
+                                    <tr>
+                                        <td>192.168.1.1</td>
+                                        <td>00:1A:2B:3C:4D:5E</td>
+                                        <td>eth0</td>
+                                        <td><span class="badge bg-success">REACHABLE</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>192.168.1.5</td>
+                                        <td>14:5E:8F:12:34:56</td>
+                                        <td>eth0</td>
+                                        <td><span class="badge bg-success">REACHABLE</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>192.168.1.10</td>
+                                        <td>A1:B2:C3:D4:E5:F6</td>
+                                        <td>eth0</td>
+                                        <td><span class="badge bg-success">REACHABLE</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>192.168.1.25</td>
+                                        <td>FF:EE:DD:CC:BB:AA</td>
+                                        <td>eth0</td>
+                                        <td><span class="badge bg-warning text-dark">STALE</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="small text-muted text-center">
+                            <i class="bi bi-info-circle"></i> IP to MAC address mappings from kernel neighbor table
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Network Topology (simplified) -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Network Topology</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="topology-container" id="networkTopology">
+                            <div class="text-center">
+                                <img src="img/topology-placeholder.png" alt="Network Topology" class="img-fluid topology-image">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="small text-muted text-center">
+                            <i class="bi bi-info-circle"></i> Simplified visualization of your network connection
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Last update info -->
+        <div class="row">
+            <div class="col-12 text-end text-muted small">
+                <span>Last Updated: <span id="lastUpdated">June 18, 2025 14:32:45</span></span>
+            </div>
+        </div>
+    </div>
+
+    <footer class="dashboard-footer mt-4 py-3">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-0">&copy; 2025 NetScout-Pi. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-md-end">                    <a href="https://github.com/NetScout-Go/NetTool" target="_blank" rel="noopener noreferrer" class="text-decoration-none me-3">
+                        <i class="fab fa-github"></i> GitHub
+                    </a>
+                    <a href="index.html" class="text-decoration-none">
+                        <i class="fas fa-home"></i> Homepage
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
