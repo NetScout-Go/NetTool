@@ -1,0 +1,75 @@
+{
+  "id": "subnet_calculator",
+  "name": "Subnet Calculator",
+  "description": "IP subnet calculator for analyzing network addresses, calculating subnet masks, and planning network segmentation",
+  "icon": "diagram-3",
+  "parameters": [
+    {
+      "id": "action",
+      "name": "Action",
+      "description": "The subnet operation to perform",
+      "type": "select",
+      "required": true,
+      "default": "calculate",
+      "options": [
+        {
+          "value": "calculate",
+          "label": "Calculate Subnet"
+        },
+        {
+          "value": "divide",
+          "label": "Divide Subnet"
+        },
+        {
+          "value": "supernet",
+          "label": "Calculate Supernet"
+        }
+      ]
+    },
+    {
+      "id": "address",
+      "name": "IP Address/CIDR",
+      "description": "IP address (IPv4 or IPv6) with or without CIDR notation",
+      "type": "string",
+      "required": true,
+      "default": "192.168.1.0/24"
+    },
+    {
+      "id": "mask",
+      "name": "Subnet Mask",
+      "description": "Subnet mask (e.g., '255.255.255.0' or '24') if not included in the address",
+      "type": "string",
+      "required": false
+    },
+    {
+      "id": "subnet_bits",
+      "name": "Subnet Bits",
+      "description": "Additional subnet bits to add to the prefix length",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 32,
+      "step": 1
+    },
+    {
+      "id": "num_subnets",
+      "name": "Number of Subnets",
+      "description": "Number of subnets to divide into (for divide action)",
+      "type": "number",
+      "required": false,
+      "default": 4,
+      "min": 2,
+      "max": 256,
+      "step": 1
+    },
+    {
+      "id": "ip_list",
+      "name": "IP Address List",
+      "description": "Comma-separated list of IP addresses or subnets (for supernet action)",
+      "type": "string",
+      "required": false,
+      "default": "192.168.1.0/24,192.168.2.0/24"
+    }
+  ]
+}

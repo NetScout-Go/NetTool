@@ -51,7 +51,7 @@
                                     <div class="accordion-body p-0">
                                         <ul class="nav flex-column">
                                             {{range .plugins}}
-                                                {{if or (eq .ID "network_quality") (eq .ID "bandwidth_test") (eq .ID "packet_capture") (eq .ID "network_info") (eq .ID "iperf3") (eq .ID "tc_controller")}}
+                                                {{if or (eq .ID "network_quality") (eq .ID "bandwidth_test") (eq .ID "packet_capture") (eq .ID "network_info") (eq .ID "iperf3") (eq .ID "tc_controller") (eq .ID "network_latency_heatmap") (eq .ID "subnet_calculator")}}
                                                 <li class="nav-item">
                                                     <a class="nav-link plugin-nav-link {{ if eq $.title .Name }}active{{ end }}" href="/plugin/{{.ID}}" data-plugin-id="{{.ID}}">
                                                         <i class="bi bi-{{.Icon}}"></i>
