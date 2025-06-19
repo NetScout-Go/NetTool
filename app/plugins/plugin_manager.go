@@ -135,8 +135,50 @@ func (pm *PluginManager) RegisterPlugins() {
 		log.Printf("Warning: Error loading plugins from filesystem: %v", err)
 	} else {
 		// Register plugins from files
-		for _, plugin := range pluginsFromFiles {
-			log.Printf("Registering plugin from filesystem: %s", plugin.ID)
+		for _, externalPlugin := range pluginsFromFiles {
+			log.Printf("Registering plugin from filesystem: %s", externalPlugin.ID)
+
+			// Create a new Plugin from the external plugin
+			plugin := &Plugin{
+				ID:          externalPlugin.ID,
+				Name:        externalPlugin.Name,
+				Description: externalPlugin.Description,
+				Icon:        externalPlugin.Icon,
+				Parameters:  make([]Parameter, len(externalPlugin.Parameters)),
+			}
+
+			// Copy parameters
+			for i, param := range externalPlugin.Parameters {
+				plugin.Parameters[i] = Parameter{
+					ID:          param.ID,
+					Name:        param.Name,
+					Description: param.Description,
+					Type:        ParameterType(param.Type),
+					Required:    param.Required,
+					Default:     param.Default,
+					Options:     make([]Option, len(param.Options)),
+					Min:         param.Min,
+					Max:         param.Max,
+					Step:        param.Step,
+				}
+
+				// Copy options
+				for j, opt := range param.Options {
+					plugin.Parameters[i].Options[j] = Option{
+						Value: opt.Value,
+						Label: opt.Label,
+					}
+				}
+			}
+
+			// Get and set the Execute function
+			execFunc, err := loader.GetPluginExecuteFunc(externalPlugin.ID)
+			if err != nil {
+				log.Printf("Warning: Error getting execute function for plugin %s: %v", externalPlugin.ID, err)
+				continue
+			}
+			plugin.Execute = execFunc
+
 			pm.RegisterPlugin(plugin)
 		}
 	}

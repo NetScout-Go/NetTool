@@ -64,6 +64,8 @@ NetTool is a comprehensive network diagnostic and monitoring tool. It provides a
 
 ## Installation
 
+### Basic Installation
+
 1. Clone the repository:
 
     ```bash
@@ -71,7 +73,23 @@ NetTool is a comprehensive network diagnostic and monitoring tool. It provides a
     cd NetTool
     ```
 
-2. Build the application:
+2. Install the GitHub CLI (required for plugin installation):
+
+    ```bash
+    sudo apt install gh
+    gh auth login
+    ```
+
+3. Install plugins:
+
+    ```bash
+    chmod +x install-plugins.sh
+    ./install-plugins.sh
+    ```
+   
+   This will let you choose to install all available plugins or select specific ones.
+
+4. Build the application:
 
     ```bash
     go build
@@ -83,13 +101,13 @@ NetTool is a comprehensive network diagnostic and monitoring tool. It provides a
     env CGO_ENABLED=0 go build
     ```
 
-3. Run the application:
+5. Run the application:
 
     ```bash
     ./nettool
     ```
 
-    You should not need to run this with sudo, but if you encounter permission issues, try:
+    You should not need to run this with sudo, but if you encounter permission issues or if you need to use plugins that require elevated privileges (like Traffic Control), try:
 
     ```bash
     sudo ./nettool
@@ -97,8 +115,39 @@ NetTool is a comprehensive network diagnostic and monitoring tool. It provides a
 
     By default, it will start on port 8080. You can change the port by using the `--port` flag.
 
-4. Access the web interface:
+6. Access the web interface:
    Open a browser and navigate to `http://<your-pi-ip>:8080`
+
+### Plugin Management
+
+NetTool uses a plugin system for its network diagnostic tools. All plugins are maintained in separate repositories under the NetScout-Go GitHub organization.
+
+#### Installing Plugins
+
+You can install plugins using the provided script:
+
+```bash
+./install-plugins.sh
+```
+
+This script will:
+
+1. Check if GitHub CLI is installed and authenticated
+2. Fetch all available plugins from the NetScout-Go organization
+3. Let you choose to install all plugins or select specific ones
+4. Clone the selected plugin repositories into the correct location
+
+#### Listing Installed Plugins
+
+To see which plugins are currently installed:
+
+```bash
+./list-plugins.sh
+```
+
+#### Plugin Dependencies
+
+Some plugins require additional system dependencies. See the [Plugin Dependencies](app/plugins/plugins/DEPENDENCIES.md) file for details on how to install necessary dependencies for specific plugins.
 
 ## Running as a Service
 

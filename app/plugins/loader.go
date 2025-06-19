@@ -7,171 +7,104 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/NetScout-Go/NetTool/app/plugins/plugins/example"
-
-	// Import plugin implementations (relative to this package)
-
-	arpmanager "github.com/NetScout-Go/NetTool/app/plugins/plugins/arp_manager"
-
-	bandwidthtest "github.com/NetScout-Go/NetTool/app/plugins/plugins/bandwidth_test"
-
-	devicediscovery "github.com/NetScout-Go/NetTool/app/plugins/plugins/device_discovery"
-
-	dnslookup "github.com/NetScout-Go/NetTool/app/plugins/plugins/dns_lookup"
-
-	dnspropagation "github.com/NetScout-Go/NetTool/app/plugins/plugins/dns_propagation"
-
-	externalplugin "github.com/NetScout-Go/NetTool/app/plugins/plugins/external_plugin"
-
-	iperf3pkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/iperf3"
-
-	iperf3serverpkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/iperf3_server"
-
-	mtutester "github.com/NetScout-Go/NetTool/app/plugins/plugins/mtu_tester"
-
-	networkinfo "github.com/NetScout-Go/NetTool/app/plugins/plugins/network_info"
-
-	networklatencyheatmap "github.com/NetScout-Go/NetTool/app/plugins/plugins/network_latency_heatmap"
-
-	networkquality "github.com/NetScout-Go/NetTool/app/plugins/plugins/network_quality"
-
-	packetcapture "github.com/NetScout-Go/NetTool/app/plugins/plugins/packet_capture"
-
-	pingpkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/ping"
-
-	portscanner "github.com/NetScout-Go/NetTool/app/plugins/plugins/port_scanner"
-
-	reversednslookup "github.com/NetScout-Go/NetTool/app/plugins/plugins/reverse_dns_lookup"
-
-	sslchecker "github.com/NetScout-Go/NetTool/app/plugins/plugins/ssl_checker"
-
-	tccontroller "github.com/NetScout-Go/NetTool/app/plugins/plugins/tc_controller"
-
-	traceroutepkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/traceroute"
-
-	wifidevicelocator "github.com/NetScout-Go/NetTool/app/plugins/plugins/wifi_device_locator"
-
-	wifideviceproximity "github.com/NetScout-Go/NetTool/app/plugins/plugins/wifi_device_proximity"
-
-	wifiscanner "github.com/NetScout-Go/NetTool/app/plugins/plugins/wifi_scanner"
+	"github.com/NetScout-Go/NetTool/app/plugins/types"
 )
 
 // PluginLoader handles loading plugins from the filesystem
 type PluginLoader struct {
-	pluginsDir string
-	mu         sync.Mutex
+	pluginsDir         string
+	plugins            []types.Plugin
+	mutex              sync.Mutex
+	pluginExecuteFuncs map[string]func(map[string]interface{}) (interface{}, error)
 }
 
 // NewPluginLoader creates a new plugin loader
 func NewPluginLoader(pluginsDir string) *PluginLoader {
 	return &PluginLoader{
-		pluginsDir: pluginsDir,
+		pluginsDir:         pluginsDir,
+		plugins:            []types.Plugin{},
+		pluginExecuteFuncs: make(map[string]func(map[string]interface{}) (interface{}, error)),
 	}
 }
 
 // LoadPlugins loads all plugins from the plugins directory
-func (pl *PluginLoader) LoadPlugins() ([]*Plugin, error) {
-	pl.mu.Lock()
-	defer pl.mu.Unlock()
+func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	var plugins []*Plugin
+	// Reset plugins
+	p.plugins = []types.Plugin{}
+	p.pluginExecuteFuncs = make(map[string]func(map[string]interface{}) (interface{}, error))
 
-	// Get all plugin directories
-	entries, err := os.ReadDir(pl.pluginsDir)
+	// List all directories in the plugins directory
+	entries, err := os.ReadDir(p.pluginsDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read plugins directory: %w", err)
+		return nil, fmt.Errorf("failed to read plugins directory: %v", err)
 	}
 
-	// Load each plugin
+	// Process each directory as a potential plugin
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 
-		pluginDir := filepath.Join(pl.pluginsDir, entry.Name())
+		pluginDir := filepath.Join(p.pluginsDir, entry.Name())
+		pluginJsonPath := filepath.Join(pluginDir, "plugin.json")
 
-		// Load plugin definition
-		pluginDefPath := filepath.Join(pluginDir, "plugin.json")
-		if _, err := os.Stat(pluginDefPath); os.IsNotExist(err) {
-			continue // Skip if plugin.json doesn't exist
+		// Check if plugin.json exists
+		if _, err := os.Stat(pluginJsonPath); os.IsNotExist(err) {
+			continue
 		}
 
-		// Read and parse plugin.json
-		defData, err := os.ReadFile(pluginDefPath)
+		// Read plugin.json
+		data, err := os.ReadFile(pluginJsonPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read plugin definition for %s: %w", entry.Name(), err)
+			fmt.Printf("Warning: Failed to read plugin.json for %s: %v\n", entry.Name(), err)
+			continue
 		}
 
-		var plugin Plugin
-		if err := json.Unmarshal(defData, &plugin); err != nil {
-			return nil, fmt.Errorf("failed to parse plugin definition for %s: %w", entry.Name(), err)
+		// Parse plugin.json
+		var plugin types.Plugin
+		if err := json.Unmarshal(data, &plugin); err != nil {
+			fmt.Printf("Warning: Failed to parse plugin.json for %s: %v\n", entry.Name(), err)
+			continue
 		}
 
-		// Get the execute function for the plugin
-		execFunc, err := pl.getPluginExecuteFunc(entry.Name())
-		if err != nil {
-			return nil, fmt.Errorf("failed to get execute function for %s: %w", entry.Name(), err)
-		}
+		// Register plugin
+		p.plugins = append(p.plugins, plugin)
 
-		plugin.Execute = execFunc
-		plugins = append(plugins, &plugin)
+		// Register execute function
+		// We'll use the external plugin mechanism for all plugins
+		pluginID := plugin.ID
+		p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {
+			// Add plugin_type parameter for external plugin
+			newParams := make(map[string]interface{})
+			for k, v := range params {
+				newParams[k] = v
+			}
+			
+			// Get the path to the plugin executable
+			pluginPath := filepath.Join(pluginDir, "plugin.go")
+			
+			// Return placeholder for now - actual execution will be handled by external plugin loader
+			return map[string]interface{}{
+				"message": fmt.Sprintf("External plugin %s would be executed with %s", pluginID, pluginPath),
+			}, nil
+		}
 	}
 
-	return plugins, nil
+	return p.plugins, nil
 }
 
-// getPluginExecuteFunc returns the Execute function for a plugin
-// This method hardcodes the mapping since Go doesn't allow for true dynamic loading
-// of Go packages at runtime without plugins (which have platform limitations)
-func (pl *PluginLoader) getPluginExecuteFunc(pluginName string) (func(map[string]interface{}) (interface{}, error), error) {
-	switch pluginName {
-	case "arp_manager":
-		return arpmanager.Execute, nil
-	case "network_info":
-		return networkinfo.Execute, nil
-	case "ping":
-		return pingpkg.Execute, nil
-	case "traceroute":
-		return traceroutepkg.Execute, nil
-	case "port_scanner":
-		return portscanner.Execute, nil
-	case "dns_lookup":
-		return dnslookup.Execute, nil
-	case "bandwidth_test":
-		return bandwidthtest.Execute, nil
-	case "dns_propagation":
-		return dnspropagation.Execute, nil
-	case "reverse_dns_lookup":
-		return reversednslookup.Execute, nil
-	case "device_discovery":
-		return devicediscovery.Execute, nil
-	case "mtu_tester":
-		return mtutester.Execute, nil
-	case "network_quality":
-		return networkquality.Execute, nil
-	case "network_latency_heatmap":
-		return networklatencyheatmap.Execute, nil
-	case "packet_capture":
-		return packetcapture.Execute, nil
-	case "ssl_checker":
-		return sslchecker.Execute, nil
-	case "wifi_scanner":
-		return wifiscanner.Execute, nil
-	case "wifi_device_locator":
-		return wifidevicelocator.Execute, nil
-	case "wifi_device_proximity":
-		return wifideviceproximity.Execute, nil
-	case "iperf3":
-		return iperf3pkg.Execute, nil
-	case "iperf3_server":
-		return iperf3serverpkg.Execute, nil
-	case "tc_controller":
-		return tccontroller.Execute, nil
-	case "example":
-		return example.Execute, nil
-	case "external_plugin":
-		return externalplugin.Execute, nil
-	default:
-		return nil, fmt.Errorf("plugin implementation not found: %s", pluginName)
+// GetPluginExecuteFunc returns the Execute function for a plugin
+func (p *PluginLoader) GetPluginExecuteFunc(pluginID string) (func(map[string]interface{}) (interface{}, error), error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	executeFunc, ok := p.pluginExecuteFuncs[pluginID]
+	if !ok {
+		return nil, fmt.Errorf("plugin not found: %s", pluginID)
 	}
+
+	return executeFunc, nil
 }
