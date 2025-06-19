@@ -1,4 +1,5 @@
 # NetScout Plugin: Reverse DNS Lookup
+
 IP Addresses
 Timeout
 DNS Server
@@ -24,7 +25,7 @@ concurrent_lookups
 
 Or use the NetScout-Go plugin manager to install it:
 
-```
+```go
 // In your NetScout application
 pluginLoader.InstallPlugin("https://github.com/NetScout-Go/Plugin_reverse_dns_lookup")
 ```
