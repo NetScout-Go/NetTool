@@ -31,7 +31,7 @@ type Option struct {
 	Label string      `json:"label"`
 }
 
-// Plugin represents a NetScout-Pi plugin
+// Plugin represents a NetTool plugin
 type Plugin struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`

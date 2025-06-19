@@ -1,4 +1,4 @@
-module github.com/anoam/netscout-pi
+module github.com/NetScout-Go/NetTool
 
 go 1.24.4
 

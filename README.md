@@ -1,10 +1,10 @@
-# NetScout-Pi: Network Diagnostic Tool for Raspberry Pi
+# NetTool: Network Diagnostic Tool
 
-![NetScout-Pi Logo](/Resources/Banner.png)
+![NetTool Logo](/Resources/Banner.png)
 > [!warning]
 > Do not use for production environments. This is a personal project for educational purposes and may not be secure or stable enough for critical applications. Most of the plugins are not optimized for production use and may require additional configuration (some even dont behave correctly outside the environment that they were developed in) or security measures.
 
-NetScout-Pi is a comprehensive network diagnostic and monitoring tool designed specifically for Raspberry Pi devices. It provides a web-based interface to run various network diagnostic tools and view real-time network information.
+NetTool is a comprehensive network diagnostic and monitoring tool. It provides a web-based interface to run various network diagnostic tools and view real-time network information.
 
 > [!warning]
 > The documentation has been made with AI assistance, I hate making documentation since this will be published for the semmer event by hackclub i thought it would be a good idea to use AI.
@@ -67,8 +67,8 @@ NetScout-Pi is a comprehensive network diagnostic and monitoring tool designed s
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/anoam/NetScout-Pi.git
-    cd NetScout-Pi
+    git clone https://github.com/NetScout-Go/NetTool.git
+    cd NetTool
     ```
 
 2. Build the application:
@@ -86,13 +86,13 @@ NetScout-Pi is a comprehensive network diagnostic and monitoring tool designed s
 3. Run the application:
 
     ```bash
-    ./netscout-pi
+    ./nettool
     ```
 
     You should not need to run this with sudo, but if you encounter permission issues, try:
 
     ```bash
-    sudo ./netscout-pi
+    sudo ./nettool
     ```
 
     By default, it will start on port 8080. You can change the port by using the `--port` flag.
@@ -102,7 +102,7 @@ NetScout-Pi is a comprehensive network diagnostic and monitoring tool designed s
 
 ## Running as a Service
 
-To run NetScout-Pi as a background service that starts on boot:
+To run NetTool as a background service that starts on boot:
 
 1. Create a systemd service file:
 
@@ -114,12 +114,12 @@ To run NetScout-Pi as a background service that starts on boot:
 
     ```ini
     [Unit]
-    Description=NetScout-Pi Network Diagnostic Tool
+    Description=NetTool Network Diagnostic Tool
     After=network.target
 
     [Service]
-    ExecStart=/home/pi/NetScout-Pi/netscout-pi #You may need to adjust this path
-    WorkingDirectory=/home/pi/NetScout-Pi
+    ExecStart=/home/pi/NetTool/nettool #You may need to adjust this path
+    WorkingDirectory=/home/pi/NetTool
     StandardOutput=inherit
     StandardError=inherit
     Restart=always
@@ -139,10 +139,10 @@ To run NetScout-Pi as a background service that starts on boot:
 
 ## Configuration
 
-By default, NetScout-Pi runs on port 8080. To use a different port:
+By default, NetTool runs on port 8080. To use a different port:
 
 ```bash
-./netscout-pi --port=8888
+./nettool --port=8888
 ```
 
 You can also configure the application by creating a config.json file in the root directory:
@@ -171,7 +171,7 @@ The main dashboard provides real-time information about your network interfaces:
 
 ## Plugin System
 
-NetScout-Pi uses a modular plugin system that makes it easy to add new diagnostic tools. Plugins are now organized into categories for easier navigation through an accordion menu in the sidebar. Each plugin consists of:
+NetTool uses a modular plugin system that makes it easy to add new diagnostic tools. Plugins are now organized into categories for easier navigation through an accordion menu in the sidebar. Each plugin consists of:
 
 1. A **plugin.json** file defining metadata and parameters
 2. A **plugin.go** file implementing the plugin's functionality
@@ -246,7 +246,7 @@ Example response:
 
 ## WebSocket Support
 
-NetScout-Pi provides real-time updates through WebSockets:
+NetTool provides real-time updates through WebSockets:
 
 ```javascript
 const ws = new WebSocket('ws://<your-pi-ip>:8080/ws');
@@ -259,7 +259,7 @@ ws.onmessage = function(event) {
 
 ## External Plugin Support
 
-NetScout-Pi supports external plugins written in languages like Python and Bash. See the [External Plugin Guide](app/plugins/plugins/external_plugin/README.md) for more information.
+NetTool supports external plugins written in languages like Python and Bash. See the [External Plugin Guide](app/plugins/plugins/external_plugin/README.md) for more information.
 
 ## Troubleshooting
 

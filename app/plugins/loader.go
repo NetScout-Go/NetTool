@@ -7,53 +7,53 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/anoam/netscout-pi/app/plugins/plugins/example"
+	"github.com/NetScout-Go/NetTool/app/plugins/plugins/example"
 
 	// Import plugin implementations (relative to this package)
 
-	arpmanager "github.com/anoam/netscout-pi/app/plugins/plugins/arp_manager"
+	arpmanager "github.com/NetScout-Go/NetTool/app/plugins/plugins/arp_manager"
 
-	bandwidthtest "github.com/anoam/netscout-pi/app/plugins/plugins/bandwidth_test"
+	bandwidthtest "github.com/NetScout-Go/NetTool/app/plugins/plugins/bandwidth_test"
 
-	devicediscovery "github.com/anoam/netscout-pi/app/plugins/plugins/device_discovery"
+	devicediscovery "github.com/NetScout-Go/NetTool/app/plugins/plugins/device_discovery"
 
-	dnslookup "github.com/anoam/netscout-pi/app/plugins/plugins/dns_lookup"
+	dnslookup "github.com/NetScout-Go/NetTool/app/plugins/plugins/dns_lookup"
 
-	dnspropagation "github.com/anoam/netscout-pi/app/plugins/plugins/dns_propagation"
+	dnspropagation "github.com/NetScout-Go/NetTool/app/plugins/plugins/dns_propagation"
 
-	externalplugin "github.com/anoam/netscout-pi/app/plugins/plugins/external_plugin"
+	externalplugin "github.com/NetScout-Go/NetTool/app/plugins/plugins/external_plugin"
 
-	iperf3pkg "github.com/anoam/netscout-pi/app/plugins/plugins/iperf3"
+	iperf3pkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/iperf3"
 
-	iperf3serverpkg "github.com/anoam/netscout-pi/app/plugins/plugins/iperf3_server"
+	iperf3serverpkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/iperf3_server"
 
-	mtutester "github.com/anoam/netscout-pi/app/plugins/plugins/mtu_tester"
+	mtutester "github.com/NetScout-Go/NetTool/app/plugins/plugins/mtu_tester"
 
-	networkinfo "github.com/anoam/netscout-pi/app/plugins/plugins/network_info"
+	networkinfo "github.com/NetScout-Go/NetTool/app/plugins/plugins/network_info"
 
-	networklatencyheatmap "github.com/anoam/netscout-pi/app/plugins/plugins/network_latency_heatmap"
+	networklatencyheatmap "github.com/NetScout-Go/NetTool/app/plugins/plugins/network_latency_heatmap"
 
-	networkquality "github.com/anoam/netscout-pi/app/plugins/plugins/network_quality"
+	networkquality "github.com/NetScout-Go/NetTool/app/plugins/plugins/network_quality"
 
-	packetcapture "github.com/anoam/netscout-pi/app/plugins/plugins/packet_capture"
+	packetcapture "github.com/NetScout-Go/NetTool/app/plugins/plugins/packet_capture"
 
-	pingpkg "github.com/anoam/netscout-pi/app/plugins/plugins/ping"
+	pingpkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/ping"
 
-	portscanner "github.com/anoam/netscout-pi/app/plugins/plugins/port_scanner"
+	portscanner "github.com/NetScout-Go/NetTool/app/plugins/plugins/port_scanner"
 
-	reversednslookup "github.com/anoam/netscout-pi/app/plugins/plugins/reverse_dns_lookup"
+	reversednslookup "github.com/NetScout-Go/NetTool/app/plugins/plugins/reverse_dns_lookup"
 
-	sslchecker "github.com/anoam/netscout-pi/app/plugins/plugins/ssl_checker"
+	sslchecker "github.com/NetScout-Go/NetTool/app/plugins/plugins/ssl_checker"
 
-	tccontroller "github.com/anoam/netscout-pi/app/plugins/plugins/tc_controller"
+	tccontroller "github.com/NetScout-Go/NetTool/app/plugins/plugins/tc_controller"
 
-	traceroutepkg "github.com/anoam/netscout-pi/app/plugins/plugins/traceroute"
+	traceroutepkg "github.com/NetScout-Go/NetTool/app/plugins/plugins/traceroute"
 
-	wifidevicelocator "github.com/anoam/netscout-pi/app/plugins/plugins/wifi_device_locator"
+	wifidevicelocator "github.com/NetScout-Go/NetTool/app/plugins/plugins/wifi_device_locator"
 
-	wifideviceproximity "github.com/anoam/netscout-pi/app/plugins/plugins/wifi_device_proximity"
+	wifideviceproximity "github.com/NetScout-Go/NetTool/app/plugins/plugins/wifi_device_proximity"
 
-	wifiscanner "github.com/anoam/netscout-pi/app/plugins/plugins/wifi_scanner"
+	wifiscanner "github.com/NetScout-Go/NetTool/app/plugins/plugins/wifi_scanner"
 )
 
 // PluginLoader handles loading plugins from the filesystem

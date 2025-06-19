@@ -52,7 +52,7 @@ type Option struct {
 	Label string      `json:"label"`
 }
 
-// Plugin represents a NetScout-Pi plugin
+// Plugin represents a NetTool plugin
 type Plugin struct {
 	ID          string                                            `json:"id"`
 	Name        string                                            `json:"name"`
@@ -62,7 +62,7 @@ type Plugin struct {
 	Execute     func(map[string]interface{}) (interface{}, error) `json:"-"`
 }
 
-// PluginManager manages the plugins in NetScout-Pi
+// PluginManager manages the plugins in NetTool
 type PluginManager struct {
 	plugins map[string]*Plugin
 	mu      sync.RWMutex

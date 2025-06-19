@@ -1,5 +1,5 @@
 /**
- * NetScout-Pi Plugin Manager
+ * NetTool Plugin Manager
  * Handles plugin navigation, execution and results display
  */
 

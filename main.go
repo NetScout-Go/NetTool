@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anoam/netscout-pi/app/core"
-	"github.com/anoam/netscout-pi/app/plugins"
+	"github.com/NetScout-Go/NetTool/app/core"
+	"github.com/NetScout-Go/NetTool/app/plugins"
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -61,7 +61,7 @@ func main() {
 	// Main dashboard route
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "dashboard.html", gin.H{
-			"title":   "NetScout-Pi Dashboard",
+			"title":   "NetTool Dashboard",
 			"plugins": pluginManager.GetPlugins(),
 		})
 	})
@@ -69,7 +69,7 @@ func main() {
 	// Additional explicit dashboard route
 	r.GET("/dashboard", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "dashboard.html", gin.H{
-			"title":   "NetScout-Pi Dashboard",
+			"title":   "NetTool Dashboard",
 			"plugins": pluginManager.GetPlugins(),
 		})
 	})
@@ -171,7 +171,7 @@ func main() {
 	})
 
 	// Start the server
-	log.Printf("Starting NetScout-Pi server on :%d", *port)
+	log.Printf("Starting NetTool server on :%d", *port)
 	log.Fatal(r.Run(fmt.Sprintf(":%d", *port)))
 }
 

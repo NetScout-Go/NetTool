@@ -1,5 +1,5 @@
 /**
- * NetScout-Pi Dashboard JavaScript
+ * NetTool Dashboard JavaScript
  * Handles main dashboard functionality and WebSocket communications
  */
 
