@@ -37,4 +37,4 @@ pluginLoader.InstallPlugin("https://github.com/NetScout-Go/Plugin_reverse_dns_lo
 
 ## License
 
-MIT License
+GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007

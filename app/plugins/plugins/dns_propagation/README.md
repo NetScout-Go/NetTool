@@ -36,4 +36,4 @@ pluginLoader.InstallPlugin("https://github.com/NetScout-Go/Plugin_dns_propagatio
 
 ## License
 
-MIT License
+GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007

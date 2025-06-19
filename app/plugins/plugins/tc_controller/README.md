@@ -45,4 +45,4 @@ pluginLoader.InstallPlugin("https://github.com/NetScout-Go/Plugin_tc_controller"
 
 ## License
 
-MIT License
+GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007

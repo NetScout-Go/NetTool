@@ -36,4 +36,4 @@ pluginLoader.InstallPlugin("https://github.com/NetScout-Go/Plugin_mtu_tester")
 
 ## License
 
-MIT License
+GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
