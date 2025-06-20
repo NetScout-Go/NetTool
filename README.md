@@ -1,6 +1,6 @@
 # NetTool: Network Diagnostic Tool
 
-![NetTool Logo](/Resources/Banner.png)
+![NetTool Logo](/Resources/)
 > [!warning]
 > Do not use for production environments. This is a personal project for educational purposes and may not be secure or stable enough for critical applications. Most of the plugins are not optimized for production use and may require additional configuration (some even dont behave correctly outside the environment that they were developed in) or security measures.
 
