@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"math"
 	"math/bits"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -66,12 +69,12 @@ func Execute(params map[string]interface{}) (interface{}, error) {
 	switch action {
 	case "calculate":
 		if address == "" {
-			return nil, fmt.Errorf("IP address is required for calculate action")
+			return nil, fmt.Errorf("missing required parameter: IP Address/CIDR")
 		}
 		return calculateSubnet(address, mask, int(subnetBits), timestamp)
 	case "divide":
 		if address == "" {
-			return nil, fmt.Errorf("IP address is required for divide action")
+			return nil, fmt.Errorf("missing required parameter: IP Address/CIDR")
 		}
 		return divideSubnet(address, mask, int(numSubnets), timestamp)
 	case "supernet":
@@ -113,6 +116,12 @@ func Execute(params map[string]interface{}) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("unknown action: %s", action)
 	}
+}
+
+// ExecuteAdapter handles the subnet calculator plugin API calls
+func ExecuteAdapter(params map[string]interface{}) (interface{}, error) {
+	return Execute(params)
+}
 }
 
 // calculateSubnet performs subnet calculations
@@ -900,34 +909,8 @@ func networksOverlap(n1, n2 *net.IPNet) bool {
 }
 
 // ExecuteAdapter adapts the input from the dashboard to the format expected by the plugin
-func executeAdapter(params map[string]interface{}) (interface{}, error) {
-	// Copy the parameters to avoid modifying the original
-	adaptedParams := make(map[string]interface{})
-	for k, v := range params {
-		adaptedParams[k] = v
-	}
-
-	// Handle action
-	action, _ := params["action"].(string)
-	adaptedParams["action"] = action
-
-	// Handle the IP list for supernet, aggregate, and conflict_detect actions
-	if action == "supernet" || action == "aggregate" || action == "conflict_detect" {
-		ipListStr, _ := params["ip_list"].(string)
-		if ipListStr != "" {
-			// Split the comma-separated string into a slice
-			ipList := strings.Split(ipListStr, ",")
-			// Convert to []interface{} as required by Execute
-			ipListInterface := make([]interface{}, len(ipList))
-			for i, ip := range ipList {
-				ipListInterface[i] = strings.TrimSpace(ip)
-			}
-			adaptedParams["ip_list"] = ipListInterface
-		}
-	}
-
-	// Call the original Execute function
-	return Execute(adaptedParams)
+func ExecuteAdapter(params map[string]interface{}) (interface{}, error) {
+	return executeAdapter(params)
 }
 
 // Plugin registers this plugin with the plugin system
@@ -938,6 +921,69 @@ func Plugin() interface{} {
 		"name":        "Subnet Calculator",
 		"description": "IP subnet calculator for analyzing network addresses, calculating subnet masks, and planning network segmentation",
 		"version":     "1.0.0",
-		"execute":     executeAdapter,
+		"execute":     ExecuteAdapter,
+	}
+}
+
+// main function to allow standalone execution
+func main() {
+	// Parse command line flags
+	action := flag.String("action", "calculate", "Action to perform: calculate, divide, supernet, aggregate, conflict_detect")
+	address := flag.String("address", "", "IP address for calculation or division")
+	mask := flag.String("mask", "", "Subnet mask (optional)")
+	numSubnets := flag.Int("num-subnets", 0, "Number of subnets for division")
+	ipListStr := flag.String("ip-list", "", "Comma-separated list of IP addresses for supernet or conflict detection")
+	flag.Parse()
+
+	// Prepare parameters
+	params := map[string]interface{}{
+		"action": *action,
+	}
+
+	if *address != "" {
+		params["address"] = *address
+	}
+
+	if *mask != "" {
+		params["mask"] = *mask
+	}
+
+	if *numSubnets > 0 {
+		params["num_subnets"] = float64(*numSubnets)
+	}
+
+	if *ipListStr != "" {
+		// Split the comma-separated string into a slice
+		ipList := strings.Split(*ipListStr, ",")
+		// Convert to []interface{} as required by Execute
+		ipListInterface := make([]interface{}, len(ipList))
+		for i, ip := range ipList {
+			ipListInterface[i] = strings.TrimSpace(ip)
+		}
+		params["ip_list"] = ipListInterface
+	}
+
+	// Execute the plugin
+	result, err := Execute(params)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Convert result to JSON
+	jsonResult, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling result to JSON: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Print the result
+	fmt.Println(string(jsonResult))
+}
+
+// Plugin exports the plugin functions
+func Plugin() map[string]interface{} {
+	return map[string]interface{}{
+		"execute": ExecuteAdapter,
 	}
 }

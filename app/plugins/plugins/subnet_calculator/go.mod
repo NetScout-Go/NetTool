@@ -1,4 +1,4 @@
-module github.com/NetScout-Go/Plugin_subnet_calculator
+module subnet_calculator
 
 go 1.21
 
