@@ -38,10 +38,15 @@ echo -e "${BLUE}Updating package lists...${NC}"
 apt-get update
 
 echo -e "${BLUE}Installing Bluetooth dependencies...${NC}"
-apt-get install -y bluez bluez-tools libbluetooth-dev
+apt-get install -y bluez bluez-tools libbluetooth-dev python3-pip python3-dbus \
+                   python3-gi python3-glib python3-psutil
 
-echo -e "${BLUE}Installing Go dependencies...${NC}"
-apt-get install -y build-essential
+echo -e "${BLUE}Installing Python dependencies...${NC}"
+pip3 install dbus-next requests psutil
+
+echo -e "${BLUE}Installing Python dependencies...${NC}"
+apt-get install -y python3-pip python3-dev
+pip3 install dbus-next requests
 
 # Enable Bluetooth service
 echo -e "${BLUE}Enabling Bluetooth service...${NC}"
@@ -80,9 +85,19 @@ else
 fi
 
 echo -e "${GREEN}Installation completed successfully!${NC}"
+
+# Run diagnostic test
+echo -e "${BLUE}Running BLE diagnostic test...${NC}"
+if [ -f "$(pwd)/debug_ble_service.py" ]; then
+    sudo python3 "$(pwd)/debug_ble_service.py"
+else
+    echo -e "${YELLOW}Warning: BLE diagnostic script not found. Skipping diagnostics.${NC}"
+fi
+
 echo -e "${YELLOW}Notes:${NC}"
 echo -e "1. You may need to reboot for all changes to take effect."
 echo -e "2. To test BLE functionality, run: 'sudo bluetoothctl'"
+echo -e "3. To run a diagnostic test separately, use: 'sudo python3 $(pwd)/debug_ble_service.py'"
 echo -e "3. Within bluetoothctl, try: 'show', 'power on', 'scan on'"
 echo
 echo -e "${GREEN}The BLE HTTP Proxy plugin should now work properly on your Pi Zero 2 W.${NC}"

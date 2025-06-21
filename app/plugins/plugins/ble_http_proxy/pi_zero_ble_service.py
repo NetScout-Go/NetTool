@@ -5,7 +5,29 @@ NetTool BLE HTTP Proxy Service for Raspberry Pi Zero 2 W
 This script implements a Bluetooth Low Energy GATT service that allows
 clients to connect to the NetTool dashboard over BLE.
 
-It uses the BlueZ D-Bus API through the dbus-next library to:
+It uses the B    
+
+@method(in_signature='aya{sv}', out_signature='')
+    def WriteValue(self, value, options):
+        """
+        Handle client writes to this characteristic
+        """
+        logger.info(f"Received write request with {len(value)} bytes")
+        
+        # Check if we have a device path in the options
+        device_path = None
+        if 'device' in options:
+            device_path = options['device'].value
+            # Register device as connected
+            self.service.update_connection_stats(device_path, connected=True)
+        
+        # Update statistics for bytes received
+        self.service.update_connection_stats(bytes_received=len(value))
+        
+        # Ensure we have at least 17 bytes (16 for UUID + 1 for flags)
+        if len(value) < 17:
+            logger.error("Request too short")
+            returnAPI through the dbus-next library to:
 1. Set up a GATT server
 2. Create an HTTP proxy service
 3. Handle HTTP requests and forward them to the local web server
@@ -23,7 +45,7 @@ Install dependencies:
 import asyncio
 import dbus_next
 from dbus_next.aio import MessageBus
-from dbus_next.service import ServiceInterface, method, dbus_property, signal
+from dbus_next.service import ServiceInterface, method, property, signal
 from dbus_next.constants import BusType
 from dbus_next import Variant, DBusError
 import array
@@ -37,7 +59,25 @@ import threading
 import signal
 import time
 import argparse
+import json
 from urllib.parse import urlparse
+
+# Optional imports - wrap in try/except
+try:
+    import psutil  # For monitoring system resources
+except ImportError:
+    # Create a fallback if psutil is not available
+    class PsutilFallback:
+        def cpu_percent(self):
+            return 0
+        
+        def virtual_memory(self):
+            class Memory:
+                def __init__(self):
+                    self.percent = 0
+            return Memory()
+    
+    psutil = PsutilFallback()
 
 # Configure logging
 logging.basicConfig(
@@ -50,6 +90,7 @@ logger = logging.getLogger('nettool-ble-proxy')
 BLE_HTTP_PROXY_SERVICE_UUID = '00001234-0000-1000-8000-00805f9b34fb'
 BLE_HTTP_REQUEST_CHAR_UUID = '00001235-0000-1000-8000-00805f9b34fb'
 BLE_HTTP_RESPONSE_CHAR_UUID = '00001236-0000-1000-8000-00805f9b34fb'
+BLE_STATUS_CHAR_UUID = '00001237-0000-1000-8000-00805f9b34fb'
 
 # BlueZ D-Bus constants
 BLUEZ_SERVICE_NAME = 'org.bluez'
@@ -68,6 +109,18 @@ request_data = {}
 response_data = {}
 data_lock = threading.Lock()
 
+# Connection tracking
+connected_devices = set()
+connection_stats = {
+    "total_connections": 0,
+    "total_requests": 0,
+    "total_bytes_sent": 0,
+    "total_bytes_received": 0,
+    "uptime_start": time.time(),
+    "connected_clients": 0
+}
+stats_lock = threading.Lock()
+
 class InvalidArgsException(DBusError):
     """Exception for invalid arguments on D-Bus methods."""
     def __init__(self, message):
@@ -84,21 +137,69 @@ class HTTPProxyService(ServiceInterface):
         self.response_notifying = set()
         self.path = '/org/bluez/nettool/service0'
         self.mtu = 23  # Default MTU
-        
-    @dbus_property(GATT_SERVICE_INTERFACE, signature='s')
-    def UUID(self) -> str:
-        return BLE_HTTP_PROXY_SERVICE_UUID
-    
-    @dbus_property(GATT_SERVICE_INTERFACE, signature='ao')
-    def Characteristics(self) -> list:
-        return [
+        self._uuid = BLE_HTTP_PROXY_SERVICE_UUID
+        self._characteristics = [
             '/org/bluez/nettool/service0/char0',  # Request characteristic
             '/org/bluez/nettool/service0/char1',  # Response characteristic
+            '/org/bluez/nettool/service0/char2',  # Status characteristic
         ]
+        self._primary = True
+        
+        # Store connected devices and connection stats
+        self.connected_devices = set()
+        self.last_status_update = 0
+        
+    def update_connection_stats(self, device_path=None, connected=None, bytes_sent=0, bytes_received=0):
+        """Update connection statistics"""
+        with stats_lock:
+            # Update device connection status if provided
+            if device_path is not None and connected is not None:
+                if connected and device_path not in connected_devices:
+                    connected_devices.add(device_path)
+                    connection_stats["total_connections"] += 1
+                    connection_stats["connected_clients"] = len(connected_devices)
+                elif not connected and device_path in connected_devices:
+                    connected_devices.remove(device_path)
+                    connection_stats["connected_clients"] = len(connected_devices)
+            
+            # Update data transfer stats
+            connection_stats["total_bytes_sent"] += bytes_sent
+            connection_stats["total_bytes_received"] += bytes_received
+            if bytes_received > 0:
+                connection_stats["total_requests"] += 1
+                
+            # Get system resource usage
+            connection_stats["cpu_percent"] = psutil.cpu_percent()
+            connection_stats["memory_percent"] = psutil.virtual_memory().percent
+            
+            # Check if we should notify status change
+            current_time = time.time()
+            if (current_time - self.last_status_update) > 2.0:  # Update every 2 seconds max
+                self.last_status_update = current_time
+                self.notify_status_change()
     
-    @dbus_property(GATT_SERVICE_INTERFACE, signature='b')
+    def notify_status_change(self):
+        """Notify status characteristic subscribers of changes"""
+        if hasattr(self, 'status_char'):
+            try:
+                # Convert stats to JSON and set as value
+                status_json = json.dumps(connection_stats).encode('utf-8')
+                self.status_char.set_value(array.array('B', status_json))
+                logger.debug("Sent status update notification")
+            except Exception as e:
+                logger.error(f"Failed to send status notification: {e}")
+        
+    @property(signature='s')
+    def UUID(self) -> str:
+        return self._uuid
+    
+    @property(signature='ao')
+    def Characteristics(self) -> list:
+        return self._characteristics
+    
+    @property(signature='b')
     def Primary(self) -> bool:
-        return True
+        return self._primary
         
     def set_mtu(self, mtu):
         """
@@ -121,24 +222,27 @@ class HTTPRequestCharacteristic(ServiceInterface):
         super().__init__(GATT_CHARACTERISTIC_INTERFACE)
         self.service = service
         self.path = '/org/bluez/nettool/service0/char0'
-        self.value = array.array('B', [0] * 512)
+        self._value = array.array('B', [0] * 512)
         self.http_handlers = {}
+        self._uuid = BLE_HTTP_REQUEST_CHAR_UUID
+        self._service_path = service.path
+        self._flags = ['write', 'write-without-response']
         
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='s')
+    @property(signature='s')
     def UUID(self) -> str:
-        return BLE_HTTP_REQUEST_CHAR_UUID
+        return self._uuid
     
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='o')
+    @property(signature='o')
     def Service(self) -> str:
-        return self.service.path
+        return self._service_path
     
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='ay')
+    @property(signature='ay')
     def Value(self) -> list:
-        return self.value
+        return self._value
     
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='as')
+    @property(signature='as')
     def Flags(self) -> list:
-        return ['write', 'write-without-response']
+        return self._flags
     
     @method(GATT_CHARACTERISTIC_INTERFACE, in_signature='aya{sv}', out_signature='')
     def WriteValue(self, value, options):
@@ -146,6 +250,16 @@ class HTTPRequestCharacteristic(ServiceInterface):
         Handle client writes to this characteristic
         """
         logger.info(f"Received write request with {len(value)} bytes")
+        
+        # Check if we have a device path in the options
+        device_path = None
+        if 'device' in options:
+            device_path = options['device'].value
+            # Register device as connected
+            self.service.update_connection_stats(device_path, connected=True)
+        
+        # Update statistics for bytes received
+        self.service.update_connection_stats(bytes_received=len(value))
         
         # Ensure we have at least 17 bytes (16 for UUID + 1 for flags)
         if len(value) < 17:
@@ -293,23 +407,26 @@ class HTTPResponseCharacteristic(ServiceInterface):
         self.path = '/org/bluez/nettool/service0/char1'
         self.notifying = set()
         self.current_value = array.array('B', [0] * 0)
+        self._uuid = BLE_HTTP_RESPONSE_CHAR_UUID
+        self._service_path = service.path
+        self._flags = ['read', 'notify']
         
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='s')
+    @property(signature='s')
     def UUID(self) -> str:
-        return BLE_HTTP_RESPONSE_CHAR_UUID
+        return self._uuid
     
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='o')
+    @property(signature='o')
     def Service(self) -> str:
-        return self.service.path
+        return self._service_path
     
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='ay')
+    @property(signature='ay')
     def Value(self) -> list:
         # Return current value
         return self.current_value
     
-    @dbus_property(GATT_CHARACTERISTIC_INTERFACE, signature='as')
+    @property(signature='as')
     def Flags(self) -> list:
-        return ['read', 'notify']
+        return self._flags
     
     def set_value(self, value):
         """
@@ -324,8 +441,7 @@ class HTTPResponseCharacteristic(ServiceInterface):
         # Notify all subscribers
         for client in self.notifying:
             try:
-                self.PropertiesChanged(GATT_CHARACTERISTIC_INTERFACE, 
-                                      {"Value": self.current_value}, [])
+                self.emit_properties_changed({'Value': self.current_value})
                 logger.info(f"Notified client {client}")
             except Exception as e:
                 logger.error(f"Failed to notify client {client}: {e}")
@@ -344,6 +460,8 @@ class HTTPResponseCharacteristic(ServiceInterface):
         device_path = None
         if 'device' in options:
             device_path = options['device'].value
+            # Register device as connected
+            self.service.update_connection_stats(device_path, connected=True)
         
         # Check if we have a request ID
         req_id = None
@@ -377,6 +495,10 @@ class HTTPResponseCharacteristic(ServiceInterface):
             
             # Return a chunk of the response
             chunk = resp_data[offset:offset+max_chunk_size]
+            
+            # Update bytes sent statistics
+            self.service.update_connection_stats(bytes_sent=len(chunk))
+            
             return array.array('B', chunk)
     
     @method(GATT_CHARACTERISTIC_INTERFACE, in_signature='', out_signature='')
@@ -399,6 +521,96 @@ class HTTPResponseCharacteristic(ServiceInterface):
         if sender in self.notifying:
             self.notifying.remove(sender)
 
+class StatusCharacteristic(ServiceInterface):
+    """
+    Characteristic for providing BLE proxy status information
+    """
+    def __init__(self, service):
+        super().__init__(GATT_CHARACTERISTIC_INTERFACE)
+        self.service = service
+        self.path = '/org/bluez/nettool/service0/char2'
+        self.notifying = set()
+        
+    @property(signature='s')
+    def UUID(self) -> str:
+        return BLE_STATUS_CHAR_UUID
+    
+    @property(signature='o')
+    def Service(self) -> str:
+        return self.service.path
+    
+    @property(signature='ay')
+    def Value(self) -> list:
+        # Return current status as JSON
+        with stats_lock:
+            status_json = json.dumps(connection_stats).encode('utf-8')
+            return array.array('B', status_json)
+    
+    @property(signature='as')
+    def Flags(self) -> list:
+        return ['read', 'notify']
+    
+    @method(in_signature='a{sv}', out_signature='ay')
+    def ReadValue(self, options):
+        """
+        Handle client reads from this characteristic
+        """
+        offset = 0
+        if 'offset' in options:
+            offset = options['offset'].value
+        
+        # Check if we have a device path in the options
+        device_path = None
+        if 'device' in options:
+            device_path = options['device'].value
+            # Register device as connected when it reads status
+            self.service.update_connection_stats(device_path, connected=True)
+        
+        # Get the current status as JSON
+        with stats_lock:
+            status_json = json.dumps(connection_stats).encode('utf-8')
+        
+        # Return the data starting from the requested offset
+        if offset >= len(status_json):
+            return array.array('B', [0] * 0)
+        
+        # Return the status data
+        chunk = status_json[offset:offset+self.service.get_max_attribute_size()]
+        return array.array('B', chunk)
+    
+    @method(in_signature='', out_signature='')
+    def StartNotify(self):
+        """
+        Start notifications for this characteristic
+        """
+        # Get the current client path
+        sender = self.get_sender()
+        logger.info(f"StartNotify for status from {sender}")
+        self.notifying.add(sender)
+    
+    @method(in_signature='', out_signature='')
+    def StopNotify(self):
+        """
+        Stop notifications for this characteristic
+        """
+        sender = self.get_sender()
+        logger.info(f"StopNotify for status from {sender}")
+        if sender in self.notifying:
+            self.notifying.remove(sender)
+    
+    def set_value(self, value):
+        """
+        Set the value and notify subscribers
+        """
+        # Only notify if we have subscribers
+        if not self.notifying:
+            return
+        
+        # Notify all subscribers
+        for client in self.notifying:
+            logger.debug(f"Notifying client {client} of status change")
+            self.PropertiesChanged(GATT_CHARACTERISTIC_INTERFACE, {"Value": value}, [])
+
 class Advertisement(ServiceInterface):
     """
     BLE Advertisement to broadcast the HTTP Proxy Service
@@ -407,31 +619,34 @@ class Advertisement(ServiceInterface):
         super().__init__(LE_ADVERTISEMENT_INTERFACE)
         self.path = '/org/bluez/nettool/advertisement0'
         self.device_name = device_name
+        self._type = 'peripheral'
+        self._service_uuids = [BLE_HTTP_PROXY_SERVICE_UUID]
+        self._manufacturer_data = array.array('B', [0x59, 0x00, 0x01])
         
-    @dbus_property(LE_ADVERTISEMENT_INTERFACE, signature='s')
+    @property(signature='s')
     def Type(self) -> str:
-        return 'peripheral'
+        return self._type
     
-    @dbus_property(LE_ADVERTISEMENT_INTERFACE, signature='as')
+    @property(signature='as')
     def ServiceUUIDs(self) -> list:
-        return [BLE_HTTP_PROXY_SERVICE_UUID]
+        return self._service_uuids
     
-    @dbus_property(LE_ADVERTISEMENT_INTERFACE, signature='s')
+    @property(signature='s')
     def LocalName(self) -> str:
         return self.device_name
         
-    @dbus_property(LE_ADVERTISEMENT_INTERFACE, signature='a{sv}')
+    @property(signature='a{sv}')
     def ServiceData(self) -> dict:
         # Add service data to help with discovery
         return {
             BLE_HTTP_PROXY_SERVICE_UUID: Variant('ay', [0x01])  # Version 1
         }
         
-    @dbus_property(LE_ADVERTISEMENT_INTERFACE, signature='ay')
+    @property(signature='ay')
     def ManufacturerData(self) -> list:
         # Use NetTool manufacturer ID (using 0x0059 for example)
         # Format: [0x59, 0x00, 0x01] - ID 0x0059, protocol version 0x01
-        return array.array('B', [0x59, 0x00, 0x01])
+        return self._manufacturer_data
     
     @method(LE_ADVERTISEMENT_INTERFACE, in_signature='', out_signature='')
     def Release(self):
@@ -487,14 +702,17 @@ async def main(device_name, http_port):
     service = HTTPProxyService(http_port)
     request_char = HTTPRequestCharacteristic(service)
     response_char = HTTPResponseCharacteristic(service)
+    status_char = StatusCharacteristic(service)
     
-    # Store response_char in service for notifications
+    # Store response_char and status_char in service for notifications
     service.response_char = response_char
+    service.status_char = status_char
     
-    # Export the interfaces
+    # Export the interfaces to DBus
     bus.export('/org/bluez/nettool/service0', service)
     bus.export('/org/bluez/nettool/service0/char0', request_char)
     bus.export('/org/bluez/nettool/service0/char1', response_char)
+    bus.export('/org/bluez/nettool/service0/char2', status_char)
     
     # Register the GATT service
     gatt_manager = bus.get_proxy_object(BLUEZ_SERVICE_NAME, adapter_path,

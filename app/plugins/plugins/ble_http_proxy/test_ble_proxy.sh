@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to test BLE HTTP Proxy functionality
-# This script simulates what would happen on a real Pi Zero with Bluetooth
+# This script tests the BLE HTTP Proxy service on a Raspberry Pi
 
 set -e
 
@@ -12,22 +12,33 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo -e "${BLUE}BLE HTTP Proxy Test Script${NC}"
-echo -e "${YELLOW}This script simulates BLE HTTP Proxy functionality for testing.${NC}"
+echo -e "${YELLOW}This script tests the BLE HTTP Proxy service on a Raspberry Pi.${NC}"
 echo
 
-# Check for bluetoothctl
-if ! command -v bluetoothctl &> /dev/null; then
-    echo -e "${RED}bluetoothctl command not found.${NC}"
-    echo -e "${YELLOW}This is a simulation script, but we still need bluetoothctl for proper testing.${NC}"
-    echo -e "${YELLOW}Try: sudo apt-get install bluez bluez-tools${NC}"
-    exit 1
-fi
+# Check for dependencies using our Python script
+echo -e "${BLUE}Checking dependencies...${NC}"
+if [ -f "${SCRIPT_DIR}/check_dependencies.py" ]; then
+    python3 "${SCRIPT_DIR}/check_dependencies.py"
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}Dependency check found issues. You may need to install missing packages.${NC}"
+        echo -e "${YELLOW}Run setup_pi_zero.sh to install all required dependencies.${NC}"
+    fi
+else
+    # Fall back to basic checks if the dependency checker isn't available
+    # Check for bluetoothctl
+    if ! command -v bluetoothctl &> /dev/null; then
+        echo -e "${RED}bluetoothctl command not found.${NC}"
+        echo -e "${YELLOW}Try: sudo apt-get install bluez bluez-tools${NC}"
+        exit 1
+    fi
 
-# Check if BlueZ DBus service is running
-if ! busctl --system list | grep -q org.bluez; then
-    echo -e "${RED}BlueZ DBus service not found.${NC}"
-    echo -e "${YELLOW}Make sure the Bluetooth service is running: sudo systemctl start bluetooth${NC}"
+    # Check if BlueZ DBus service is running
+    if ! busctl --system list | grep -q org.bluez; then
+        echo -e "${RED}BlueZ DBus service not found.${NC}"
+        echo -e "${YELLOW}Make sure the Bluetooth service is running: sudo systemctl start bluetooth${NC}"
     exit 1
 fi
 
@@ -103,12 +114,19 @@ fi
 
 # Launch the BLE service
 echo -e "${BLUE}Starting BLE HTTP Proxy service...${NC}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-python3 "$SCRIPT_DIR/pi_zero_ble_service.py" --device-name "NetTool-Test" --port 8088 &
-BLE_PID=$!
+
+# Run using the debug wrapper for better error reporting
+if [ -f "${SCRIPT_DIR}/debug_ble_service.sh" ]; then
+    bash "${SCRIPT_DIR}/debug_ble_service.sh" --device-name "NetTool-Test" --port 8088 &
+    BLE_PID=$!
+else
+    # Fall back to direct execution if debug wrapper isn't available
+    python3 "$SCRIPT_DIR/pi_zero_ble_service.py" --device-name "NetTool-Test" --port 8088 &
+    BLE_PID=$!
+fi
 
 # Setup BLE advertising
-echo -e "${BLUE}Setting up BLE advertising...${NC}"
+echo -e "${BLUE}BLE service started with PID: ${BLE_PID}${NC}"
 echo -e "${GREEN}Advertising NetTool BLE HTTP Proxy service on Bluetooth LE${NC}"
 echo -e "${GREEN}Service UUID: 00001234-0000-1000-8000-00805f9b34fb${NC}"
 
@@ -124,13 +142,45 @@ echo
 echo -e "${GREEN}Bluetooth device address: ${ADAPTER_ADDR}${NC}"
 echo -e "${GREEN}BLE HTTP Proxy service is ready!${NC}"
 echo
-echo -e "${YELLOW}On your mobile device:${NC}"
-echo -e "1. Install a BLE HTTP Proxy client app"
-echo -e "2. Scan for device with name 'NetTool-Test'"
-echo -e "3. Connect to the device"
-echo -e "4. Try accessing http://localhost/ through the proxy"
+echo -e "${YELLOW}Testing Options:${NC}"
+echo -e "1. Use a BLE client app on your mobile device"
+echo -e "   - Scan for device with name 'NetTool-Test'"
+echo -e "   - Connect to the device"
+echo -e "   - Try accessing http://localhost/ through the proxy"
+echo
+echo -e "2. Use the test client script in the client directory:"
+echo -e "   - Run: python3 ${SCRIPT_DIR}/client/test_ble_client.py --scan"
+echo -e "   - Run: python3 ${SCRIPT_DIR}/client/test_ble_client.py --get XX:XX:XX:XX:XX:XX --path /"
 echo
 echo -e "${YELLOW}Press Ctrl+C to stop the test server.${NC}"
+
+# Function to clean up on script exit
+cleanup() {
+    echo -e "\n${BLUE}Cleaning up...${NC}"
+    
+    # Kill the BLE service
+    if [ ! -z "$BLE_PID" ]; then
+        echo -e "Stopping BLE service (PID: $BLE_PID)..."
+        kill $BLE_PID 2>/dev/null || true
+    fi
+    
+    # Kill the HTTP server
+    if [ ! -z "$SERVER_PID" ]; then
+        echo -e "Stopping HTTP server (PID: $SERVER_PID)..."
+        kill $SERVER_PID 2>/dev/null || true
+    fi
+    
+    # Remove temporary files
+    if [ -d "$TEMP_DIR" ]; then
+        echo -e "Removing temporary files..."
+        rm -rf "$TEMP_DIR"
+    fi
+    
+    echo -e "${GREEN}Done!${NC}"
+}
+
+# Register cleanup function to run on script exit
+trap cleanup EXIT INT TERM
 
 # Wait for Ctrl+C
 trap "kill $SERVER_PID $BLE_PID; rm -rf $TEMP_DIR; echo -e '\n${GREEN}Test server stopped.${NC}'" EXIT

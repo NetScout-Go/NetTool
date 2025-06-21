@@ -10,6 +10,25 @@ The BLE HTTP Proxy feature allows you to connect to your NetTool device using Bl
 
 ## Getting Started
 
+### Setup on NetTool Device (One-time setup)
+
+1. Install required dependencies on your Pi Zero 2 W:
+```bash
+sudo apt-get update
+sudo apt-get install -y bluez bluez-tools python3-pip
+sudo pip3 install dbus-next requests
+```
+
+2. Give your user proper permissions:
+```bash
+sudo usermod -a -G bluetooth $USER
+```
+
+3. Reboot the device:
+```bash
+sudo reboot
+```
+
 ### On NetTool Device
 
 1. Make sure your NetTool device (Pi Zero 2 W) has Bluetooth enabled
@@ -64,6 +83,41 @@ The BLE HTTP Proxy feature allows you to connect to your NetTool device using Bl
 - **Max Theoretical Throughput**: ~1.4 Mbps (with optimal conditions)
 - **Typical Range**: 10-30 meters (depends on environment)
 - **Service UUID**: 00001234-0000-1000-8000-00805f9b34fb
+
+## Test Client Tools
+
+NetTool includes Python-based client tools for testing the BLE HTTP Proxy functionality:
+
+### Python Test Client
+
+If you're using Linux or another Pi, you can use the included Python test client:
+
+1. Install the required dependencies:
+
+   ```bash
+   sudo apt-get install python3-pip libglib2.0-dev
+   sudo pip3 install bluepy
+   ```
+
+2. Scan for NetTool devices:
+
+   ```bash
+   python3 client/test_ble_client.py --scan
+   ```
+
+3. Check the status of a specific device:
+
+   ```bash
+   python3 client/test_ble_client.py --status XX:XX:XX:XX:XX:XX
+   ```
+
+4. Send a GET request to the dashboard:
+
+   ```bash
+   python3 client/test_ble_client.py --get XX:XX:XX:XX:XX:XX --path /
+   ```
+
+Replace `XX:XX:XX:XX:XX:XX` with the Bluetooth MAC address of your NetTool device.
 
 ## Battery Impact
 
