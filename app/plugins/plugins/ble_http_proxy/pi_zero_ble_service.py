@@ -186,15 +186,15 @@ class HTTPProxyService(ServiceInterface):
             except Exception as e:
                 logger.error(f"Failed to send status notification: {e}")
         
-    @property(signature='s')
+    @dbus_property(signature='s')
     def UUID(self) -> str:
         return self._uuid
     
-    @property(signature='ao')
+    @dbus_property(signature='ao')
     def Characteristics(self) -> list:
         return self._characteristics
     
-    @property(signature='b')
+    @dbus_property(signature='b')
     def Primary(self) -> bool:
         return self._primary
         
@@ -225,19 +225,19 @@ class HTTPRequestCharacteristic(ServiceInterface):
         self._service_path = service.path
         self._flags = ['write', 'write-without-response']
         
-    @property(signature='s')
+    @dbus_property(signature='s')
     def UUID(self) -> str:
         return self._uuid
     
-    @property(signature='o')
+    @dbus_property(signature='o')
     def Service(self) -> str:
         return self._service_path
     
-    @property(signature='ay')
+    @dbus_property(signature='ay')
     def Value(self) -> list:
         return self._value
     
-    @property(signature='as')
+    @dbus_property(signature='as')
     def Flags(self) -> list:
         return self._flags
     
@@ -408,20 +408,20 @@ class HTTPResponseCharacteristic(ServiceInterface):
         self._service_path = service.path
         self._flags = ['read', 'notify']
         
-    @property(signature='s')
+    @dbus_property(signature='s')
     def UUID(self) -> str:
         return self._uuid
     
-    @property(signature='o')
+    @dbus_property(signature='o')
     def Service(self) -> str:
         return self._service_path
     
-    @property(signature='ay')
+    @dbus_property(signature='ay')
     def Value(self) -> list:
         # Return current value
         return self.current_value
     
-    @property(signature='as')
+    @dbus_property(signature='as')
     def Flags(self) -> list:
         return self._flags
     
@@ -528,22 +528,22 @@ class StatusCharacteristic(ServiceInterface):
         self.path = '/org/bluez/nettool/service0/char2'
         self.notifying = set()
         
-    @property(signature='s')
+    @dbus_property(signature='s')
     def UUID(self) -> str:
         return BLE_STATUS_CHAR_UUID
     
-    @property(signature='o')
+    @dbus_property(signature='o')
     def Service(self) -> str:
         return self.service.path
     
-    @property(signature='ay')
+    @dbus_property(signature='ay')
     def Value(self) -> list:
         # Return current status as JSON
         with stats_lock:
             status_json = json.dumps(connection_stats).encode('utf-8')
             return array.array('B', status_json)
     
-    @property(signature='as')
+    @dbus_property(signature='as')
     def Flags(self) -> list:
         return ['read', 'notify']
     
