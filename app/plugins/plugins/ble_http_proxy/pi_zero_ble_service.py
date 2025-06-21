@@ -9,9 +9,6 @@ It uses the B
 
 @method(in_signature='aya{sv}', out_signature='')
     def WriteValue(self, value, options):
-        """
-        Handle client writes to this characteristic
-        """
         logger.info(f"Received write request with {len(value)} bytes")
         
         # Check if we have a device path in the options
