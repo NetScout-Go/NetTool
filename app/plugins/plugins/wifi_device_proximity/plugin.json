@@ -3,7 +3,10 @@
   "name": "WiFi Device Proximity Locator",
   "description": "Locate nearby WiFi devices (access points and clients) by their signal strength with real-time proximity indicators and tracking features",
   "icon": "location_searching",
-  "parameters": [
+  "icon":  "location_searching",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "interface",
       "name": "Wi-Fi Interface",

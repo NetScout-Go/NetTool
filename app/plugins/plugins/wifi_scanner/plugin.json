@@ -3,7 +3,10 @@
   "name": "Wi-Fi Scanner",
   "description": "Scans for nearby Wi-Fi networks and displays signal strength, channel information, and encryption types",
   "icon": "wifi",
-  "parameters": [
+  "icon":  "wifi",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "interface",
       "name": "Wi-Fi Interface",

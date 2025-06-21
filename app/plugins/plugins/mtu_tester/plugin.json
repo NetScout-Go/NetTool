@@ -3,7 +3,10 @@
   "name": "MTU Size Tester",
   "description": "Determines the optimal MTU size for a connection to help diagnose packet fragmentation issues",
   "icon": "format_size",
-  "parameters": [
+  "icon":  "format_size",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "target",
       "name": "Target Host",

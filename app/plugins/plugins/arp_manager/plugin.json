@@ -3,7 +3,10 @@
   "name": "ARP Manager",
   "description": "View and manage ARP table entries, including adding, deleting, and flushing entries",
   "icon": "network",
-  "parameters": [
+  "icon":  "network",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "action",
       "name": "Action",

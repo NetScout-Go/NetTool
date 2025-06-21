@@ -3,7 +3,10 @@
   "name": "DNS Propagation Checker",
   "description": "Checks DNS propagation of a domain across multiple DNS servers worldwide",
   "icon": "dns",
-  "parameters": [
+  "icon":  "dns",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "domain",
       "name": "Domain",

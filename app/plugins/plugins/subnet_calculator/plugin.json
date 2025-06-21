@@ -3,7 +3,10 @@
   "name": "Subnet Calculator",
   "description": "IP subnet calculator for analyzing network addresses, calculating subnet masks, and planning network segmentation",
   "icon": "diagram-3",
-  "parameters": [
+  "icon":  "diagram-3",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "action",
       "name": "Action",

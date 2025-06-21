@@ -3,7 +3,10 @@
   "name": "Traceroute",
   "description": "Traces the route packets take to a network host",
   "icon": "route",
-  "parameters": [
+  "icon":  "route",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "host",
       "name": "Host",

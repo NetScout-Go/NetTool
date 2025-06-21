@@ -3,7 +3,10 @@
   "name": "iPerf3 Throughput Test",
   "description": "Test network throughput with iPerf3 between this device and a remote iPerf3 server",
   "icon": "speed",
-  "category": "Performance",
+  "icon":  "speed",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
   "parameters": [
     {
       "id": "server",

@@ -1,0 +1,199 @@
+/* Plugin Manager Styles */
+.plugin-manager-container {
+    padding: 20px;
+}
+
+/* Plugin table styles */
+#installedPluginsTable {
+    margin-bottom: 0;
+}
+
+#installedPluginsTable .placeholder-row {
+    height: 100px;
+}
+
+#installedPluginsTable .bi {
+    font-size: 1.2rem;
+}
+
+/* Action buttons group */
+#installedPluginsTable .btn-group {
+    white-space: nowrap;
+}
+
+/* Plugin details modal */
+.plugin-details {
+    padding: 10px;
+}
+
+.plugin-details .card {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.plugin-details .card-header {
+    padding: 12px 15px;
+}
+
+.plugin-details .card-header h6 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.plugin-details code {
+    word-break: break-all;
+    background-color: #f5f5f5;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.85rem;
+}
+
+.plugin-details .fw-bold {
+    font-weight: 600 !important;
+    color: #555;
+}
+
+/* Toast notification positioning */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+/* Plugin status badges */
+.badge.bg-success {
+    background-color: var(--success-color) !important;
+}
+
+.badge.bg-warning {
+    background-color: var(--warning-color) !important;
+    color: #212529;
+}
+
+.badge.bg-danger {
+    background-color: var(--danger-color) !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--secondary-color) !important;
+}
+
+/* Plugin forms */
+#installPluginForm, #uploadPluginForm {
+    margin-bottom: 0;
+}
+
+/* Dark mode adjustments */
+body.dark-mode .plugin-manager-container .card {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+body.dark-mode #installedPluginsTable {
+    color: var(--text-color);
+}
+
+body.dark-mode .modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+body.dark-mode .form-control {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .form-text {
+    color: var(--text-muted);
+}
+
+/* Loading state for table row */
+.table-loading {
+    opacity: 0.6;
+}
+
+/* Repository styling */
+.repository-card {
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.repository-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.repository-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    padding: 12px 15px;
+}
+
+.repository-card .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+/* Version tag styling */
+.version-tag {
+    display: inline-block;
+    background-color: #f1f8ff;
+    color: #0366d6;
+    border: 1px solid #c8e1ff;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 5px;
+}
+
+.version-tag.update-available {
+    background-color: #ffecb3;
+    color: #e65100;
+    border-color: #ffe082;
+}
+
+/* Plugin versions table */
+#pluginVersionsTable .bi {
+    font-size: 1.1rem;
+}
+
+#pluginVersionsTable .badge {
+    font-size: 0.7rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Repository actions */
+.repository-actions .btn {
+    text-align: left;
+    padding: 10px 15px;
+    margin-bottom: 8px;
+}
+
+.repository-actions .btn i {
+    margin-right: 8px;
+    width: 20px;
+    text-align: center;
+}
+
+/* Repository statistics */
+.repo-stats {
+    display: flex;
+    margin-top: 10px;
+    font-size: 0.85rem;
+}
+
+.repo-stats .stat-item {
+    margin-right: 15px;
+    color: #6c757d;
+}
+
+.repo-stats .stat-item i {
+    margin-right: 5px;
+}

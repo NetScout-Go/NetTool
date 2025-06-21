@@ -3,7 +3,10 @@
   "name": "Bandwidth Test",
   "description": "Tests upload and download speeds",
   "icon": "speed",
-  "parameters": [
+  "icon":  "speed",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "server",
       "name": "Server",

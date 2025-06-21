@@ -3,7 +3,10 @@
   "name": "Wi-Fi Device Locator",
   "description": "Helps locate nearby Wi-Fi devices (access points and clients) by displaying their signal strength and other information",
   "icon": "wifi",
-  "parameters": [
+  "icon":  "wifi",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "interface",
       "name": "Wi-Fi Interface",

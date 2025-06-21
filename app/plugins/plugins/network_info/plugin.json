@@ -3,5 +3,8 @@
   "name": "Network Information",
   "description": "Displays detailed information about the device's network connections",
   "icon": "network",
-  "parameters": []
+  "icon":  "network",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
 }

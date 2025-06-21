@@ -3,7 +3,10 @@
   "name": "Port Scanner",
   "description": "Scans for open ports on a target host",
   "icon": "search",
-  "parameters": [
+  "icon":  "search",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "host",
       "name": "Host",

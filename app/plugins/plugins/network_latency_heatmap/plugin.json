@@ -3,7 +3,10 @@
   "name": "Network Latency Heatmap",
   "description": "Creates a visual heatmap of network latency to various targets over time",
   "icon": "network",
-  "parameters": [
+  "icon":  "network",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "targets",
       "name": "Target Hosts",

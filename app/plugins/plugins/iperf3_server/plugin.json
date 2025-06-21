@@ -3,7 +3,10 @@
   "name": "iPerf3 Server",
   "description": "Start an iPerf3 server on this device to enable bandwidth testing from other devices",
   "icon": "dns",
-  "category": "Performance",
+  "icon":  "dns",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
   "parameters": [
     {
       "id": "port",

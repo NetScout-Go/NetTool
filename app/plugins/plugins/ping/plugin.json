@@ -3,6 +3,9 @@
   "name": "Ping",
   "description": "Tests connectivity to a host by sending ICMP echo requests",
   "icon": "ping",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
   "parameters": [
     {
       "id": "host",

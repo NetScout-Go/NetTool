@@ -3,7 +3,10 @@
   "name": "DNS Lookup",
   "description": "Performs DNS lookups for a domain",
   "icon": "dns",
-  "parameters": [
+  "icon":  "dns",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "domain",
       "name": "Domain",

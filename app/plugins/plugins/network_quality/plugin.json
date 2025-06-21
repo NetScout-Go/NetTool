@@ -3,7 +3,10 @@
   "name": "Network Quality Monitor",
   "description": "Continuously monitors network quality metrics including jitter, packet loss, and latency",
   "icon": "timeline",
-  "parameters": [
+  "icon":  "timeline",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "target",
       "name": "Target Host",

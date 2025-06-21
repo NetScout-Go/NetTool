@@ -3,7 +3,10 @@
   "name": "Network Packet Capture",
   "description": "Captures and analyzes network traffic using tcpdump",
   "icon": "traffic",
-  "parameters": [
+  "icon":  "traffic",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "interface",
       "name": "Network Interface",

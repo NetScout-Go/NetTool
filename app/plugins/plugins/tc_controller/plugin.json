@@ -3,7 +3,10 @@
   "name": "Traffic Control (QoS)",
   "description": "Simulate network conditions and test Quality of Service using Linux Traffic Control (tc)",
   "icon": "tune",
-  "category": "Performance",
+  "icon":  "tune",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
   "parameters": [
     {
       "id": "interface",

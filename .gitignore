@@ -5,3 +5,4 @@ log/
 *venv*
 arp_lib/ 
 *.bak
+test/

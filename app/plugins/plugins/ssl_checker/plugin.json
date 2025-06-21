@@ -3,7 +3,10 @@
   "name": "SSL/TLS Certificate Checker",
   "description": "Validates SSL/TLS certificates of websites and displays expiration dates, chain validity, and security issues",
   "icon": "security",
-  "parameters": [
+  "icon":  "security",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "hostname",
       "name": "Hostname",

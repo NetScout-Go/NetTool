@@ -3,7 +3,10 @@
   "name": "Reverse DNS Lookup",
   "description": "Performs reverse DNS lookups to get hostnames from IP addresses with batch processing capabilities",
   "icon": "dns",
-  "parameters": [
+  "icon":  "dns",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "ip_addresses",
       "name": "IP Addresses",

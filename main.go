@@ -3,8 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +35,7 @@ func createMyRender() multitemplate.Renderer {
 	r.AddFromFiles("dashboard.html", "app/templates/layout.html", "app/templates/dashboard.html")
 	r.AddFromFiles("error.html", "app/templates/layout.html", "app/templates/error.html")
 	r.AddFromFiles("plugin_page.html", "app/templates/layout.html", "app/templates/plugin_page.html")
+	r.AddFromFiles("plugin_manager.html", "app/templates/layout.html", "app/templates/plugin_manager.html")
 
 	return r
 }
@@ -39,6 +44,9 @@ func main() {
 	// Parse command line flags
 	port := flag.Int("port", 8080, "Port to run the server on")
 	flag.Parse()
+
+	// Ensure plugin directories exist
+	os.MkdirAll("app/plugins/plugins", 0755)
 
 	// Initialize the router
 	r := gin.Default()
@@ -55,6 +63,9 @@ func main() {
 	// Register plugins - our new implementation handles both modular and hardcoded plugins
 	pluginManager.RegisterPlugins()
 
+	// Initialize plugin installer
+	pluginInstaller := plugins.NewPluginInstaller("app/plugins/plugins", pluginManager)
+
 	// Serve static files
 	r.Static("/static", "./app/static")
 
@@ -70,6 +81,14 @@ func main() {
 	r.GET("/dashboard", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "dashboard.html", gin.H{
 			"title":   "NetTool Dashboard",
+			"plugins": pluginManager.GetPlugins(),
+		})
+	})
+
+	// Plugin manager route
+	r.GET("/plugin-manager", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "plugin_manager.html", gin.H{
+			"title":   "Plugin Manager",
 			"plugins": pluginManager.GetPlugins(),
 		})
 	})
@@ -163,6 +182,221 @@ func main() {
 
 			c.JSON(http.StatusOK, result)
 		})
+
+		// Plugin Manager API endpoints
+		pluginManage := api.Group("/plugins/manage")
+		{
+			// List all installed plugins
+			pluginManage.GET("/list", func(c *gin.Context) {
+				plugins, err := pluginInstaller.ListInstalledPlugins()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, plugins)
+			})
+
+			// Get plugin details
+			pluginManage.GET("/details/:id", func(c *gin.Context) {
+				pluginID := c.Param("id")
+				details, err := pluginInstaller.GetPluginDetails(pluginID)
+				if err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, details)
+			})
+
+			// Install plugin from URL
+			pluginManage.POST("/install", func(c *gin.Context) {
+				var req struct {
+					URL string `json:"url"`
+				}
+				if err := c.BindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+					return
+				}
+
+				metadata, err := pluginInstaller.InstallPlugin(req.URL)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusOK, metadata)
+			})
+
+			// Upload plugin (ZIP file)
+			pluginManage.POST("/upload", func(c *gin.Context) {
+				file, _, err := c.Request.FormFile("plugin")
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "No plugin file uploaded"})
+					return
+				}
+				defer file.Close()
+
+				metadata, err := pluginInstaller.UploadPlugin(file)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusOK, metadata)
+			})
+
+			// Update plugin
+			pluginManage.POST("/update/:id", func(c *gin.Context) {
+				pluginID := c.Param("id")
+				metadata, err := pluginInstaller.UpdatePlugin(pluginID)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusOK, metadata)
+			})
+
+			// Uninstall plugin
+			pluginManage.POST("/uninstall/:id", func(c *gin.Context) {
+				pluginID := c.Param("id")
+				metadata, err := pluginInstaller.UninstallPlugin(pluginID)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusOK, metadata)
+			})
+
+			// Check if a file exists
+			pluginManage.GET("/file-exists", func(c *gin.Context) {
+				filePath := c.Query("path")
+				if filePath == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Path parameter is required"})
+					return
+				}
+
+				_, err := os.Stat(filePath)
+				exists := !os.IsNotExist(err)
+
+				c.JSON(http.StatusOK, gin.H{"exists": exists})
+			})
+
+			// View file contents (for README files, etc.)
+			pluginManage.GET("/view-file", func(c *gin.Context) {
+				filePath := c.Query("path")
+				if filePath == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Path parameter is required"})
+					return
+				}
+
+				// Ensure the file exists
+				_, err := os.Stat(filePath)
+				if os.IsNotExist(err) {
+					c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+					return
+				}
+
+				// Read the file
+				content, err := ioutil.ReadFile(filePath)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file"})
+					return
+				}
+
+				// Check file extension to determine content type
+				extension := strings.ToLower(filepath.Ext(filePath))
+
+				switch extension {
+				case ".md":
+					// For markdown files, render as HTML
+					c.Header("Content-Type", "text/html")
+
+					// Very simple markdown to HTML conversion
+					htmlContent := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+    <title>%s</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: 0 auto; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+        h1, h2, h3 { margin-top: 24px; }
+        a { color: #0366d6; }
+        img { max-width: 100%%; }
+    </style>
+</head>
+<body>
+    <h1>%s</h1>
+    <div>%s</div>
+</body>
+</html>`, filepath.Base(filePath), filepath.Base(filePath), string(content))
+
+					c.String(http.StatusOK, htmlContent)
+				default:
+					// For other files, just return the content as plain text
+					c.String(http.StatusOK, string(content))
+				}
+			})
+
+			// Sync with repository
+			pluginManage.POST("/sync", func(c *gin.Context) {
+				// This endpoint will check for updates from GitHub for all plugins
+				// and update the plugin.json files with version information
+
+				plugins, err := pluginInstaller.ListInstalledPlugins()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				// Count how many plugins were updated
+				updated := 0
+
+				// For each plugin, check for updates and update version info
+				for _, plugin := range plugins {
+					// Update the plugin.json with the latest version info
+					err := pluginInstaller.UpdateVersionInfo(plugin.ID)
+					if err == nil {
+						updated++
+					}
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"message": "Successfully synced with repository",
+					"updated": updated,
+				})
+			})
+
+			// Update all plugins
+			pluginManage.POST("/update-all", func(c *gin.Context) {
+				// Get all plugins
+				plugins, err := pluginInstaller.ListInstalledPlugins()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				// Count how many plugins were updated
+				updated := 0
+
+				// Update each plugin that has an update available
+				for _, plugin := range plugins {
+					if plugin.UpdateAvailable {
+						_, err := pluginInstaller.UpdatePlugin(plugin.ID)
+						if err == nil {
+							updated++
+						}
+					}
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"message": "Successfully updated plugins",
+					"updated": updated,
+				})
+			})
+		}
 	}
 
 	// WebSocket for real-time updates

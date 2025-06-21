@@ -3,7 +3,10 @@
   "name": "Example Plugin",
   "description": "An example plugin that demonstrates how to create a modular plugin",
   "icon": "code",
-  "parameters": [
+  "icon":  "code",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "message",
       "name": "Message",

@@ -3,7 +3,10 @@
   "name": "External Plugin Interface",
   "description": "Interface for running plugins built in other programming languages",
   "icon": "extension",
-  "parameters": [
+  "icon":  "extension",
+  "version": "1.0.0",
+  "author": "NetScout-Go",
+  "license": "MIT",
     {
       "id": "plugin_type",
       "name": "Plugin Type",
