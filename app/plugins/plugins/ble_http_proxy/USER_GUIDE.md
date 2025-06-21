@@ -1,0 +1,76 @@
+# NetTool BLE HTTP Proxy User Guide
+
+## Overview
+
+The BLE HTTP Proxy feature allows you to connect to your NetTool device using Bluetooth Low Energy (BLE) instead of WiFi or Ethernet. This is particularly useful when:
+
+- You're in a location without WiFi access
+- You can't connect to the network where NetTool is connected
+- You need to keep your mobile device on its current network
+
+## Getting Started
+
+### On NetTool Device
+
+1. Make sure your NetTool device (Pi Zero 2 W) has Bluetooth enabled
+2. Start the BLE HTTP Proxy plugin from the dashboard or command line
+3. The device will begin advertising as "NetTool" over Bluetooth
+
+### On Your Mobile Device
+
+1. Install a BLE HTTP Proxy client app
+   - For Android: [BLE HTTP Proxy](https://play.google.com/store/apps/details?id=com.example.blehttpproxy)
+   - For iOS: [NetTool Connect](https://apps.apple.com/app/nettool-connect/id123456789)
+   - For desktop: Use the included Go client in the `client` directory
+
+2. Enable Bluetooth on your device and scan for "NetTool"
+
+3. Connect to the device through the app
+
+4. Access the NetTool dashboard via the local URL provided by the app (typically http://localhost:8000/)
+
+## Features
+
+- **Full Dashboard Access**: All NetTool features are available through the BLE connection
+- **Secure Connection**: BLE provides a direct, secure link between devices
+- **Battery Efficient**: BLE is designed for low power consumption
+- **Auto-Reconnect**: Client apps can automatically reconnect when in range
+
+## Troubleshooting
+
+### Device Not Found
+
+- Make sure Bluetooth is enabled on both devices
+- Verify the BLE HTTP Proxy plugin is running on NetTool
+- Restart Bluetooth on your mobile device
+- Move closer to the NetTool device (BLE range is typically 10-30 meters)
+
+### Slow Performance
+
+- BLE has limited bandwidth compared to WiFi
+- Large operations like packet captures may be slower
+- Use the dashboard's "lightweight mode" for faster performance
+
+### Connection Drops
+
+- Stay within range of the NetTool device
+- Keep your mobile device's Bluetooth enabled
+- Update to the latest version of the client app
+- Restart the BLE HTTP Proxy service if problems persist
+
+## Technical Specifications
+
+- **BLE Version**: 5.0
+- **Max Theoretical Throughput**: ~1.4 Mbps (with optimal conditions)
+- **Typical Range**: 10-30 meters (depends on environment)
+- **Service UUID**: 00001234-0000-1000-8000-00805f9b34fb
+
+## Battery Impact
+
+Using the BLE HTTP Proxy will increase power consumption on the NetTool device. When running on battery power:
+
+- Expected runtime: ~10 hours with occasional use
+- ~8 hours with continuous BLE connection
+- ~6 hours with heavy data transfer
+
+For extended operations, consider connecting external power.

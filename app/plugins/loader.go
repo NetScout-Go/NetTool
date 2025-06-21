@@ -161,13 +161,7 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 
 			// Create a wrapper execution function
 			p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {
-				// For subnet_calculator, first try to use plugin_loader_helper
-				helper := NewSubnetCalculatorHelper()
-				result, err := helper.ExecuteSubnetCalculator(params)
-				if err == nil {
-					return result, nil
-				}
-
+				// For subnet_calculator, we'll use direct execution
 				// If that fails, adapt the parameters if needed
 				adaptedParams := make(map[string]interface{})
 				for k, v := range params {
@@ -234,8 +228,8 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 				}
 
 				// Parse the output as JSON
-				var result interface{}
-				if err := json.Unmarshal(output, &result); err != nil {
+				var jsonResult interface{}
+				if err := json.Unmarshal(output, &jsonResult); err != nil {
 					// If not valid JSON, return as string
 					return map[string]interface{}{
 						"result": string(output),
@@ -243,12 +237,12 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 					}, nil
 				}
 
-				return result, nil
+				return jsonResult, nil
 			}
 
 			// Register with the registry
 			registry.RegisterPluginFunc(pluginID, p.pluginExecuteFuncs[pluginID])
-			fmt.Printf("Registered subnet_calculator plugin from %s\n", pluginGoPath)
+			fmt.Printf("Registered subnet_calculator plugin from %s\n", pluginDir)
 		} else {
 			// For other plugins, try to execute them directly from Go files
 			p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {

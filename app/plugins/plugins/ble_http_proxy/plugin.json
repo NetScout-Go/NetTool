@@ -1,0 +1,37 @@
+{
+    "id": "ble_http_proxy",
+    "name": "BLE HTTP Proxy",
+    "description": "Allows phones and PCs to connect to the dashboard via Bluetooth Low Energy",
+    "version": "1.0.0",
+    "author": "NetScout-Go Team",
+    "category": "connectivity",
+    "icon": "bluetooth",
+    "requiresRoot": true,
+    "parameters": [
+        {
+            "name": "deviceName",
+            "label": "Device Name",
+            "type": "string",
+            "default": "NetTool",
+            "required": false,
+            "description": "The Bluetooth device name that will be advertised"
+        },
+        {
+            "name": "port",
+            "label": "HTTP Port",
+            "type": "number",
+            "default": 8080,
+            "required": false,
+            "description": "The local HTTP port to proxy"
+        },
+        {
+            "name": "action",
+            "label": "Action",
+            "type": "select",
+            "options": ["start", "stop", "status"],
+            "default": "start",
+            "required": true,
+            "description": "Action to perform with the BLE proxy"
+        }
+    ]
+}
