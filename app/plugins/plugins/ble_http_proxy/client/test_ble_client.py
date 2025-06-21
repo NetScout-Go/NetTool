@@ -108,14 +108,43 @@ def get_status(peripheral):
         service = peripheral.getServiceByUUID(BLE_SERVICE_UUID)
         status_char = service.getCharacteristics(BLE_STATUS_CHAR_UUID)[0]
         
+        # Enable notifications for status updates
+        peripheral.writeCharacteristic(status_char.valHandle + 1, b"\\x01\\x00", True)
+        logger.info("Enabling status notifications...")
+        
+        # Read the status
         logger.info("Reading status characteristic...")
         status_bytes = status_char.read()
         status_json = status_bytes.decode('utf-8')
         status = json.loads(status_json)
         
+        # Print status information in a formatted way
         logger.info("Status information:")
-        for key, value in status.items():
-            logger.info(f"  {key}: {value}")
+        logger.info("-" * 40)
+        logger.info(f"Version:            {status.get('version', 'unknown')}")
+        logger.info(f"Connected clients:  {status.get('connected_clients', 0)}")
+        logger.info(f"Total connections:  {status.get('total_connections', 0)}")
+        logger.info(f"Total requests:     {status.get('total_requests', 0)}")
+        logger.info(f"Bytes sent:         {status.get('total_bytes_sent', 0):,} bytes")
+        logger.info(f"Bytes received:     {status.get('total_bytes_received', 0):,} bytes")
+        
+        uptime_start = status.get('uptime_start', 0)
+        if uptime_start > 0:
+            uptime_seconds = int(time.time() - uptime_start)
+            hours, remainder = divmod(uptime_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            logger.info(f"Uptime:             {hours}h {minutes}m {seconds}s")
+        
+        logger.info(f"Service start:      {status.get('service_start_time', 'unknown')}")
+        logger.info(f"MTU size:           {status.get('mtu_size', 23)} bytes")
+        logger.info(f"Network latency:    {status.get('network_latency', 0):.2f} ms")
+        logger.info(f"CPU usage:          {status.get('cpu_percent', 0):.1f}%")
+        logger.info(f"Memory usage:       {status.get('memory_percent', 0):.1f}%")
+        logger.info("-" * 40)
+        
+        features = status.get('supported_features', [])
+        if features:
+            logger.info("Supported features: " + ", ".join(features))
         
         return status
     except Exception as e:

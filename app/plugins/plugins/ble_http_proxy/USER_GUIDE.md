@@ -13,21 +13,24 @@ The BLE HTTP Proxy feature allows you to connect to your NetTool device using Bl
 ### Setup on NetTool Device (One-time setup)
 
 1. Install required dependencies on your Pi Zero 2 W:
-```bash
-sudo apt-get update
-sudo apt-get install -y bluez bluez-tools python3-pip
-sudo pip3 install dbus-next requests
-```
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y bluez bluez-tools python3-pip
+   sudo pip3 install dbus-next requests
+   ```
 
 2. Give your user proper permissions:
-```bash
-sudo usermod -a -G bluetooth $USER
-```
+
+   ```bash
+   sudo usermod -a -G bluetooth $USER
+   ```
 
 3. Reboot the device:
-```bash
-sudo reboot
-```
+
+   ```bash
+   sudo reboot
+   ```
 
 ### On NetTool Device
 
@@ -46,7 +49,7 @@ sudo reboot
 
 3. Connect to the device through the app
 
-4. Access the NetTool dashboard via the local URL provided by the app (typically http://localhost:8000/)
+4. Access the NetTool dashboard via the local URL provided by the app (typically `http://localhost:8000/`)
 
 ## Features
 
@@ -83,6 +86,36 @@ sudo reboot
 - **Max Theoretical Throughput**: ~1.4 Mbps (with optimal conditions)
 - **Typical Range**: 10-30 meters (depends on environment)
 - **Service UUID**: 00001234-0000-1000-8000-00805f9b34fb
+- **Default MTU Size**: 23 bytes (negotiable up to 512 bytes on supported devices)
+- **Auto-reconnect**: Supported
+- **Status Monitoring**: CPU, Memory, Network latency, Connection statistics
+
+## Advanced Features
+
+The BLE HTTP Proxy includes several advanced features to improve performance and reliability:
+
+### MTU Negotiation
+
+The proxy automatically negotiates the optimal MTU (Maximum Transmission Unit) size with connected devices, which can significantly improve performance on newer Bluetooth 5.0+ devices that support larger MTU sizes.
+
+### Chunked Transfers
+
+Large HTTP responses are automatically chunked to work efficiently over BLE, with each chunk containing:
+
+- A 16-byte UUID to match request/response pairs
+- A 1-byte flags field (bit 0 = end marker)
+- The actual HTTP data payload
+
+### Status Monitoring
+
+The proxy provides real-time status information through a dedicated characteristic, including:
+
+- Connected client count
+- Data transfer statistics
+- CPU and memory usage
+- Network latency to gateway
+- Service uptime
+- Current MTU size
 
 ## Test Client Tools
 

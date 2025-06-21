@@ -114,10 +114,18 @@ connection_stats = {
     "total_bytes_sent": 0,
     "total_bytes_received": 0,
     "uptime_start": time.time(),
-    "connected_clients": 0
+    "connected_clients": 0,
+    "version": "1.2.0",  # BLE HTTP Proxy version
+    "mtu_size": 23,      # Default MTU size, will be updated if negotiated
+    "network_latency": 0,
+    "last_request_time": 0,
+    "connection_timeouts": 0,
+    "service_start_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+    "supported_features": ["status", "chunking", "mtu_negotiation"]
 }
 stats_lock = threading.Lock()
-
+last_activity = {}  # Track last activity time for each device
+CONNECTION_TIMEOUT = 300  # 5 minutes of inactivity before considering connection dropped
 class InvalidArgsException(DBusError):
     """Exception for invalid arguments on D-Bus methods."""
     def __init__(self, message):
@@ -146,24 +154,66 @@ class HTTPProxyService(ServiceInterface):
         self.connected_devices = set()
         self.last_status_update = 0
         
-    def update_connection_stats(self, device_path=None, connected=None, bytes_sent=0, bytes_received=0):
+    def update_connection_stats(self, device_path=None, connected=None, bytes_sent=0, bytes_received=0, 
+                              request_time=None, mtu_size=None, ping_time=None):
         """Update connection statistics"""
         with stats_lock:
+            current_time = time.time()
+            
             # Update device connection status if provided
-            if device_path is not None and connected is not None:
-                if connected and device_path not in connected_devices:
-                    connected_devices.add(device_path)
-                    connection_stats["total_connections"] += 1
-                    connection_stats["connected_clients"] = len(connected_devices)
-                elif not connected and device_path in connected_devices:
-                    connected_devices.remove(device_path)
-                    connection_stats["connected_clients"] = len(connected_devices)
+            if device_path is not None:
+                # Update last activity time for this device
+                last_activity[device_path] = current_time
+                
+                if connected is not None:
+                    if connected and device_path not in connected_devices:
+                        connected_devices.add(device_path)
+                        connection_stats["total_connections"] += 1
+                        connection_stats["connected_clients"] = len(connected_devices)
+                        logger.info(f"New client connected: {device_path}, total: {connection_stats['connected_clients']}")
+                    elif not connected and device_path in connected_devices:
+                        connected_devices.remove(device_path)
+                        connection_stats["connected_clients"] = len(connected_devices)
+                        if device_path in last_activity:
+                            del last_activity[device_path]
+                        logger.info(f"Client disconnected: {device_path}, remaining: {connection_stats['connected_clients']}")
+            
+            # Check for connection timeouts
+            timeout_devices = []
+            for dev in connected_devices:
+                if dev in last_activity and (current_time - last_activity[dev]) > CONNECTION_TIMEOUT:
+                    timeout_devices.append(dev)
+                    connection_stats["connection_timeouts"] += 1
+                    logger.info(f"Client connection timed out: {dev}")
+            
+            # Remove timed out devices
+            for dev in timeout_devices:
+                connected_devices.remove(dev)
+                if dev in last_activity:
+                    del last_activity[dev]
+            
+            if timeout_devices:
+                connection_stats["connected_clients"] = len(connected_devices)
             
             # Update data transfer stats
             connection_stats["total_bytes_sent"] += bytes_sent
             connection_stats["total_bytes_received"] += bytes_received
+            
+            # Update request stats
+            if request_time is not None:
+                connection_stats["last_request_time"] = request_time
+                
             if bytes_received > 0:
                 connection_stats["total_requests"] += 1
+            
+            # Update MTU size if provided
+            if mtu_size is not None and mtu_size > connection_stats["mtu_size"]:
+                connection_stats["mtu_size"] = mtu_size
+                logger.info(f"MTU size updated to {mtu_size}")
+            
+            # Update network latency if provided
+            if ping_time is not None:
+                connection_stats["network_latency"] = ping_time
                 
             # Get system resource usage
             connection_stats["cpu_percent"] = psutil.cpu_percent()
@@ -186,29 +236,33 @@ class HTTPProxyService(ServiceInterface):
             except Exception as e:
                 logger.error(f"Failed to send status notification: {e}")
         
-    @dbus_property(signature='s')
-    def UUID(self) -> str:
+    @dbus_property()
+    def UUID(self) -> 's':
         return self._uuid
     
-    @dbus_property(signature='ao')
-    def Characteristics(self) -> list:
+    @dbus_property()
+    def Characteristics(self) -> 'ao':
         return self._characteristics
     
-    @dbus_property(signature='b')
-    def Primary(self) -> bool:
+    @dbus_property()
+    def Primary(self) -> 'b':
         return self._primary
         
     def set_mtu(self, mtu):
-        """
-        Set the MTU for the BLE connection
-        """
+        """Set the negotiated MTU size and update stats"""
         self.mtu = mtu
-        logger.info(f"MTU set to {mtu} bytes")
+        
+        # Update the MTU size in connection stats
+        with stats_lock:
+            connection_stats["mtu_size"] = mtu
+            
+        logger.info(f"MTU negotiated to {mtu} bytes")
+        
+        return self.mtu
         
     def get_max_attribute_size(self):
-        """
-        Get the maximum attribute size (MTU - 3)
-        """
+        """Get the maximum size that can be transmitted in a single BLE attribute"""
+        # MTU size minus 3 bytes for the ATT header (1 byte opcode + 2 bytes handle)
         return self.mtu - 3
 
 class HTTPRequestCharacteristic(ServiceInterface):
@@ -466,9 +520,14 @@ class HTTPResponseCharacteristic(ServiceInterface):
             req_id = options['req_id'].value
         
         # Get MTU if available
-        mtu = 0
         if 'mtu' in options:
             mtu = options['mtu'].value
+            if mtu > 0:
+                # Update MTU in service
+                self.service.set_mtu(mtu)
+                # Update connection stats
+                self.service.update_connection_stats(device_path, mtu_size=mtu)
+                logger.debug(f"MTU negotiated to {mtu} bytes from ReadValue")
             if mtu > 23 and mtu <= 517:  # Valid MTU range
                 self.service.set_mtu(mtu)
         
@@ -607,6 +666,28 @@ class StatusCharacteristic(ServiceInterface):
         for client in self.notifying:
             logger.debug(f"Notifying client {client} of status change")
             self.PropertiesChanged(GATT_CHARACTERISTIC_INTERFACE, {"Value": value}, [])
+    
+    async def notify_subscribers(self):
+        """Send notification to all subscribers with latest status"""
+        # Only notify if we have subscribers
+        if not self.notifying:
+            return
+            
+        # Get the current status as JSON
+        with stats_lock:
+            status_json = json.dumps(connection_stats).encode('utf-8')
+        
+        value = array.array('B', status_json)
+        
+        # Notify all subscribers
+        for client in self.notifying:
+            logger.debug(f"Notifying client {client} of status update")
+            try:
+                self.PropertiesChanged(GATT_CHARACTERISTIC_INTERFACE, {"Value": value}, [])
+            except Exception as e:
+                logger.error(f"Error notifying client {client}: {e}")
+                # Remove this client if notification fails
+                self.notifying.remove(client)
 
 class Advertisement(ServiceInterface):
     """
@@ -620,26 +701,26 @@ class Advertisement(ServiceInterface):
         self._service_uuids = [BLE_HTTP_PROXY_SERVICE_UUID]
         self._manufacturer_data = array.array('B', [0x59, 0x00, 0x01])
         
-    @property(signature='s')
+    @dbus_property(signature='s')
     def Type(self) -> str:
         return self._type
     
-    @property(signature='as')
+    @dbus_property(signature='as')
     def ServiceUUIDs(self) -> list:
         return self._service_uuids
     
-    @property(signature='s')
+    @dbus_property(signature='s')
     def LocalName(self) -> str:
         return self.device_name
         
-    @property(signature='a{sv}')
+    @dbus_property(signature='a{sv}')
     def ServiceData(self) -> dict:
         # Add service data to help with discovery
         return {
             BLE_HTTP_PROXY_SERVICE_UUID: Variant('ay', [0x01])  # Version 1
         }
         
-    @property(signature='ay')
+    @dbus_property(signature='ay')
     def ManufacturerData(self) -> list:
         # Use NetTool manufacturer ID (using 0x0059 for example)
         # Format: [0x59, 0x00, 0x01] - ID 0x0059, protocol version 0x01
@@ -728,6 +809,9 @@ async def main(device_name, http_port):
     await adv_manager.call_register_advertisement('/org/bluez/nettool/advertisement0', {})
     logger.info(f"Started advertising as '{device_name}'")
     
+    # Start network quality monitoring task
+    asyncio.create_task(monitor_network_quality(service))
+    
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
     
@@ -764,6 +848,70 @@ async def main(device_name, http_port):
             f.write('stopped\n')
         
         logger.info("BLE HTTP Proxy Service stopped")
+
+# Add network quality monitoring function
+async def monitor_network_quality(service):
+    """Periodically monitor network quality and update stats"""
+    logger.info("Starting network quality monitoring")
+    
+    while True:
+        try:
+            # Check gateway ping
+            gateway_ip = get_default_gateway_ip()
+            if gateway_ip:
+                start_time = time.time()
+                ping_result = await ping_host(gateway_ip)
+                ping_time = (time.time() - start_time) * 1000  # to milliseconds
+                
+                if ping_result:
+                    # Update connection stats with ping time
+                    service.update_connection_stats(ping_time=ping_time)
+                    logger.debug(f"Network latency: {ping_time:.2f}ms to gateway {gateway_ip}")
+                else:
+                    logger.warning(f"Failed to ping gateway {gateway_ip}")
+            
+            # Update uptime info
+            with stats_lock:
+                connection_stats["uptime_seconds"] = int(time.time() - connection_stats["uptime_start"])
+                
+            # If we have the status characteristic, trigger notification
+            if hasattr(service, 'status_char') and service.status_char:
+                await service.status_char.notify_subscribers()
+                
+        except Exception as e:
+            logger.error(f"Error in network monitoring: {e}")
+            
+        # Wait before next check
+        await asyncio.sleep(10)  # Check every 10 seconds
+
+def get_default_gateway_ip():
+    """Get the IP address of the default gateway"""
+    try:
+        # Try to get the default gateway using 'ip route'
+        with os.popen("ip route | grep default") as f:
+            output = f.read()
+            gateway = output.split()[2] if output else None
+            return gateway
+    except Exception as e:
+        logger.error(f"Error getting default gateway: {e}")
+        return None
+
+async def ping_host(host, count=1, timeout=1):
+    """Ping a host and return True if reachable"""
+    try:
+        cmd = f"ping -c {count} -W {timeout} {host}"
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE)
+        
+        stdout, stderr = await proc.communicate()
+        
+        # Check if ping was successful
+        return proc.returncode == 0
+    except Exception as e:
+        logger.error(f"Error pinging host {host}: {e}")
+        return False
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NetTool BLE HTTP Proxy Service")
