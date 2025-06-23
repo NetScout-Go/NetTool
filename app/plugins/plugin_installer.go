@@ -17,18 +17,28 @@ import (
 
 // PluginMetadata represents the metadata of a plugin
 type PluginMetadata struct {
-	ID              string       `json:"id"`
-	Name            string       `json:"name"`
-	Description     string       `json:"description"`
-	Version         string       `json:"version"`
-	Author          string       `json:"author"`
-	License         string       `json:"license"`
-	Icon            string       `json:"icon"`
-	Status          string       `json:"status"`
-	UpdateAvailable bool         `json:"updateAvailable"`
-	LatestVersion   string       `json:"latestVersion,omitempty"`
-	Path            string       `json:"path,omitempty"`
-	Dependencies    []Dependency `json:"dependencies,omitempty"`
+	ID              string         `json:"id"`
+	Name            string         `json:"name"`
+	Description     string         `json:"description"`
+	Version         string         `json:"version"`
+	Author          string         `json:"author"`
+	License         string         `json:"license"`
+	Icon            string         `json:"icon"`
+	Status          string         `json:"status"`
+	UpdateAvailable bool           `json:"updateAvailable"`
+	LatestVersion   string         `json:"latestVersion,omitempty"`
+	Path            string         `json:"path,omitempty"`
+	Dependencies    []Dependency   `json:"dependencies,omitempty"`
+	GitInfo         GitVersionInfo `json:"gitInfo,omitempty"`
+}
+
+// GitVersionInfo represents Git version information for a plugin
+type GitVersionInfo struct {
+	CommitID       string `json:"commitID"`
+	Branch         string `json:"branch"`
+	LatestCommitID string `json:"latestCommitID,omitempty"`
+	Repository     string `json:"repository,omitempty"`
+	Organization   string `json:"organization,omitempty"`
 }
 
 // Dependency represents a plugin dependency
@@ -41,13 +51,35 @@ type Dependency struct {
 type PluginInstaller struct {
 	pluginsDir string
 	manager    *PluginManager
+	// List of GitHub organizations from which plugins can be installed
+	pluginSources []PluginSource
+}
+
+// PluginSource represents a source for plugins
+type PluginSource struct {
+	Name         string `json:"name"`
+	Organization string `json:"organization"`
+	IsDefault    bool   `json:"isDefault"`
+	Pattern      string `json:"pattern"` // Naming pattern for plugins (e.g., "Plugin_*" or "plugin-*")
 }
 
 // NewPluginInstaller creates a new plugin installer
 func NewPluginInstaller(pluginsDir string, manager *PluginManager) *PluginInstaller {
+	// Initialize with NetScout-Go as the default plugin source
+	defaultSources := []PluginSource{
+		{
+			Name:         "NetScout-Go",
+			Organization: "NetScout-Go",
+			IsDefault:    true,
+			Pattern:      "Plugin_*",
+		},
+	}
+
+	// Create plugin installer
 	return &PluginInstaller{
-		pluginsDir: pluginsDir,
-		manager:    manager,
+		pluginsDir:    pluginsDir,
+		manager:       manager,
+		pluginSources: defaultSources,
 	}
 }
 
@@ -129,7 +161,7 @@ func (pi *PluginInstaller) GetPluginDetails(pluginID string) (PluginMetadata, er
 // InstallPlugin installs a plugin from a URL or Git repository
 func (pi *PluginInstaller) InstallPlugin(url string) (PluginMetadata, error) {
 	// Create a temporary directory
-	tempDir, err := ioutil.TempDir("", "nettool-plugin-")
+	tempDir, err := os.MkdirTemp("", "nettool-plugin-")
 	if err != nil {
 		return PluginMetadata{}, fmt.Errorf("failed to create temporary directory: %v", err)
 	}
@@ -214,7 +246,7 @@ func (pi *PluginInstaller) InstallPlugin(url string) (PluginMetadata, error) {
 // UploadPlugin installs a plugin from an uploaded ZIP file
 func (pi *PluginInstaller) UploadPlugin(file io.Reader) (PluginMetadata, error) {
 	// Create a temporary directory
-	tempDir, err := ioutil.TempDir("", "nettool-plugin-upload-")
+	tempDir, err := os.MkdirTemp("", "nettool-plugin-upload-")
 	if err != nil {
 		return PluginMetadata{}, fmt.Errorf("failed to create temporary directory: %v", err)
 	}
@@ -380,7 +412,7 @@ func (pi *PluginInstaller) UpdateVersionInfo(pluginID string) error {
 	}
 
 	// Read existing plugin.json
-	data, err := ioutil.ReadFile(jsonPath)
+	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return fmt.Errorf("failed to read plugin.json: %v", err)
 	}
@@ -452,11 +484,314 @@ func (pi *PluginInstaller) UpdateVersionInfo(pluginID string) error {
 		return fmt.Errorf("failed to marshal plugin data: %v", err)
 	}
 
-	if err := ioutil.WriteFile(jsonPath, updatedData, 0644); err != nil {
+	if err := os.WriteFile(jsonPath, updatedData, 0644); err != nil {
 		return fmt.Errorf("failed to write updated plugin.json: %v", err)
 	}
 
 	return nil
+}
+
+// updatePluginJsonWithGitInfo updates the plugin.json file with Git information
+func (pi *PluginInstaller) updatePluginJsonWithGitInfo(pluginDir string, gitInfo GitVersionInfo) error {
+	// Check if plugin.json exists
+	jsonPath := filepath.Join(pluginDir, "plugin.json")
+	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
+		return fmt.Errorf("plugin.json not found")
+	}
+
+	// Read existing plugin.json
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read plugin.json: %v", err)
+	}
+
+	var pluginData map[string]interface{}
+	if err := json.Unmarshal(data, &pluginData); err != nil {
+		return fmt.Errorf("failed to parse plugin.json: %v", err)
+	}
+
+	// Add Git information
+	gitInfoMap := map[string]interface{}{
+		"commitID":     gitInfo.CommitID,
+		"branch":       gitInfo.Branch,
+		"repository":   gitInfo.Repository,
+		"organization": gitInfo.Organization,
+	}
+
+	pluginData["gitInfo"] = gitInfoMap
+
+	// Write updated plugin.json
+	updatedData, err := json.MarshalIndent(pluginData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal plugin data: %v", err)
+	}
+
+	if err := os.WriteFile(jsonPath, updatedData, 0644); err != nil {
+		return fmt.Errorf("failed to write updated plugin.json: %v", err)
+	}
+
+	return nil
+}
+
+// InstallFromGitHub installs a plugin from a GitHub repository in the specified organization
+func (pi *PluginInstaller) InstallFromGitHub(org string, repo string, branch string) (PluginMetadata, error) {
+	// If branch is empty, use main as default
+	if branch == "" {
+		branch = "main"
+	}
+
+	// Format the GitHub URL
+	url := fmt.Sprintf("https://github.com/%s/%s.git", org, repo)
+
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "nettool-plugin-")
+	if err != nil {
+		return PluginMetadata{}, fmt.Errorf("failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Clone the Git repository with the specified branch
+	cmd := exec.Command("git", "clone", "--depth", "1", "--branch", branch, url, tempDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return PluginMetadata{}, fmt.Errorf("failed to clone repository: %v\nOutput: %s", err, string(output))
+	}
+
+	// Get the current commit ID
+	cmd = exec.Command("git", "-C", tempDir, "rev-parse", "HEAD")
+	commitOutput, err := cmd.Output()
+	commitID := ""
+	if err == nil {
+		commitID = strings.TrimSpace(string(commitOutput))
+	}
+
+	// Validate the plugin
+	metadata, err := pi.validatePlugin(tempDir)
+	if err != nil {
+		return PluginMetadata{}, fmt.Errorf("invalid plugin: %v", err)
+	}
+
+	// Create the plugin directory
+	pluginDir := filepath.Join(pi.pluginsDir, metadata.ID)
+
+	// Check if the plugin already exists
+	if _, err := os.Stat(pluginDir); !os.IsNotExist(err) {
+		return PluginMetadata{}, fmt.Errorf("plugin with ID %s already exists", metadata.ID)
+	}
+
+	// Copy the plugin files to the plugins directory
+	err = pi.copyDir(tempDir, pluginDir)
+	if err != nil {
+		return PluginMetadata{}, fmt.Errorf("failed to install plugin: %v", err)
+	}
+
+	// Add Git version information
+	metadata.GitInfo = GitVersionInfo{
+		CommitID:     commitID,
+		Branch:       branch,
+		Repository:   repo,
+		Organization: org,
+	}
+
+	// Update the plugin.json file with Git information
+	if err := pi.updatePluginJsonWithGitInfo(pluginDir, metadata.GitInfo); err != nil {
+		log.Printf("Warning: Failed to update plugin.json with Git information: %v", err)
+	}
+
+	// Build the plugin if needed
+	if err := pi.buildPlugin(pluginDir); err != nil {
+		// This is not a fatal error, just log it
+		log.Printf("Warning: Failed to build plugin %s: %v", metadata.ID, err)
+	}
+
+	// Set plugin path
+	metadata.Path = pluginDir
+
+	// Reload plugins in the plugin manager
+	pi.manager.RegisterPlugins()
+
+	return metadata, nil
+}
+
+// ListGitHubPlugins lists available plugins from a GitHub organization
+func (pi *PluginInstaller) ListGitHubPlugins(org string) ([]map[string]interface{}, error) {
+	// GitHub API URL for organization repositories
+	url := fmt.Sprintf("https://api.github.com/orgs/%s/repos?per_page=100", org)
+
+	// Make a request to the GitHub API
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch repositories: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status code %d", resp.StatusCode)
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+
+	// Parse the JSON response
+	var repos []map[string]interface{}
+	if err := json.Unmarshal(body, &repos); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	// Find the source pattern for this organization
+	pattern := "Plugin_*" // Default pattern for NetScout-Go
+	for _, source := range pi.pluginSources {
+		if source.Organization == org {
+			pattern = source.Pattern
+			break
+		}
+	}
+
+	// Filter repositories to only include plugins based on naming pattern
+	var plugins []map[string]interface{}
+	for _, repo := range repos {
+		name, ok := repo["name"].(string)
+		if !ok {
+			continue
+		}
+
+		// Check if the repository name matches the plugin pattern
+		isPlugin := false
+
+		// Match by specific pattern (e.g., "Plugin_*")
+		if strings.HasPrefix(pattern, "*") {
+			suffix := strings.TrimPrefix(pattern, "*")
+			isPlugin = strings.HasSuffix(name, suffix)
+		} else if strings.HasSuffix(pattern, "*") {
+			prefix := strings.TrimSuffix(pattern, "*")
+			isPlugin = strings.HasPrefix(name, prefix)
+		} else if pattern == "*" {
+			// Match any repo in this organization
+			isPlugin = true
+		} else {
+			// Exact match
+			isPlugin = (name == pattern)
+		}
+
+		// Fallback to generic plugin naming patterns
+		if !isPlugin {
+			isPlugin = strings.HasPrefix(name, "plugin-") ||
+				strings.HasSuffix(name, "-plugin") ||
+				strings.Contains(name, "plugin")
+		}
+
+		if isPlugin {
+			// Add additional metadata to help the user
+			repo["is_plugin"] = true
+			repo["organization"] = org
+
+			// Try to get commit information
+			if url, ok := repo["html_url"].(string); ok {
+				repo["repo_url"] = url
+			}
+
+			// Extract plugin ID from repository name
+			pluginID := name
+			if strings.HasPrefix(name, "Plugin_") {
+				pluginID = strings.TrimPrefix(name, "Plugin_")
+			}
+			repo["plugin_id"] = pluginID
+
+			plugins = append(plugins, repo)
+		}
+	}
+
+	return plugins, nil
+}
+
+// ListAllGitHubPlugins lists available plugins from all registered organizations
+func (pi *PluginInstaller) ListAllGitHubPlugins() ([]map[string]interface{}, error) {
+	var allPlugins []map[string]interface{}
+
+	for _, source := range pi.pluginSources {
+		plugins, err := pi.ListGitHubPlugins(source.Organization)
+		if err != nil {
+			log.Printf("Warning: Failed to list plugins from %s: %v", source.Organization, err)
+			continue
+		}
+
+		// Add source information to each plugin
+		for _, plugin := range plugins {
+			plugin["source_name"] = source.Name
+			plugin["source_organization"] = source.Organization
+			plugin["source_is_default"] = source.IsDefault
+			allPlugins = append(allPlugins, plugin)
+		}
+	}
+
+	return allPlugins, nil
+}
+
+// AddPluginSource adds a new plugin source organization
+func (pi *PluginInstaller) AddPluginSource(name, organization, pattern string) error {
+	// Check if the organization exists
+	if !pi.isValidGitHubOrg(organization) {
+		return fmt.Errorf("GitHub organization '%s' does not exist or is not accessible", organization)
+	}
+
+	// Check if source already exists
+	for _, source := range pi.pluginSources {
+		if source.Organization == organization {
+			return fmt.Errorf("plugin source with organization '%s' already exists", organization)
+		}
+	}
+
+	// Add the new source
+	pi.pluginSources = append(pi.pluginSources, PluginSource{
+		Name:         name,
+		Organization: organization,
+		IsDefault:    false,
+		Pattern:      pattern,
+	})
+
+	return nil
+}
+
+// RemovePluginSource removes a plugin source organization
+func (pi *PluginInstaller) RemovePluginSource(organization string) error {
+	for i, source := range pi.pluginSources {
+		if source.Organization == organization {
+			// Cannot remove default source
+			if source.IsDefault {
+				return fmt.Errorf("cannot remove default plugin source")
+			}
+
+			// Remove the source
+			pi.pluginSources = append(pi.pluginSources[:i], pi.pluginSources[i+1:]...)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("plugin source with organization '%s' not found", organization)
+}
+
+// GetPluginSources returns the list of plugin sources
+func (pi *PluginInstaller) GetPluginSources() []PluginSource {
+	return pi.pluginSources
+}
+
+// isValidGitHubOrg checks if a GitHub organization exists
+func (pi *PluginInstaller) isValidGitHubOrg(org string) bool {
+	// GitHub API URL for organization
+	url := fmt.Sprintf("https://api.github.com/orgs/%s", org)
+
+	// Make a request to the GitHub API
+	resp, err := http.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Check if the organization exists
+	return resp.StatusCode == http.StatusOK
 }
 
 // Helper functions
@@ -465,7 +800,7 @@ func (pi *PluginInstaller) UpdateVersionInfo(pluginID string) error {
 func (pi *PluginInstaller) readPluginMetadata(pluginDir string) (PluginMetadata, error) {
 	// Read plugin.json
 	jsonPath := filepath.Join(pluginDir, "plugin.json")
-	data, err := ioutil.ReadFile(jsonPath)
+	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return PluginMetadata{}, fmt.Errorf("failed to read plugin.json: %v", err)
 	}
@@ -526,46 +861,75 @@ func (pi *PluginInstaller) checkForUpdates(pluginID, currentVersion string) (boo
 		return false, ""
 	}
 
+	// Read plugin metadata to get Git info
+	metadata, err := pi.readPluginMetadata(pluginDir)
+	if err != nil {
+		log.Printf("Warning: Failed to read metadata for plugin %s: %v", pluginID, err)
+		return false, ""
+	}
+
+	// Get current branch (default to main)
+	branch := "main"
+	if metadata.GitInfo.Branch != "" {
+		branch = metadata.GitInfo.Branch
+	}
+
 	// Fetch the latest changes without applying them
-	cmd := exec.Command("git", "-C", pluginDir, "fetch")
+	cmd := exec.Command("git", "-C", pluginDir, "fetch", "origin", branch)
 	if err := cmd.Run(); err != nil {
 		log.Printf("Warning: Failed to fetch updates for plugin %s: %v", pluginID, err)
 		return false, ""
 	}
 
-	// Check if there are changes between local and remote
-	cmd = exec.Command("git", "-C", pluginDir, "rev-list", "HEAD..origin/main", "--count")
-	output, err := cmd.Output()
-	if err != nil {
-		// Try with master branch instead
-		cmd = exec.Command("git", "-C", pluginDir, "rev-list", "HEAD..origin/master", "--count")
-		output, err = cmd.Output()
+	// Get the current commit ID
+	currentCommitID := metadata.GitInfo.CommitID
+	if currentCommitID == "" {
+		// If not stored in metadata, get from git
+		cmd = exec.Command("git", "-C", pluginDir, "rev-parse", "HEAD")
+		output, err := cmd.Output()
 		if err != nil {
-			log.Printf("Warning: Failed to check updates for plugin %s: %v", pluginID, err)
+			log.Printf("Warning: Failed to get current commit ID for plugin %s: %v", pluginID, err)
 			return false, ""
 		}
+		currentCommitID = strings.TrimSpace(string(output))
 	}
 
-	// Parse the number of commits behind
-	commitsBehind, err := strconv.Atoi(strings.TrimSpace(string(output)))
+	// Get the latest commit ID
+	cmd = exec.Command("git", "-C", pluginDir, "rev-parse", "origin/"+branch)
+	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("Warning: Failed to parse update count for plugin %s: %v", pluginID, err)
+		log.Printf("Warning: Failed to get latest commit ID for plugin %s: %v", pluginID, err)
 		return false, ""
 	}
+	latestCommitID := strings.TrimSpace(string(output))
 
-	if commitsBehind > 0 {
-		// Get the latest tag if available
-		cmd = exec.Command("git", "-C", pluginDir, "describe", "--tags", "origin/main")
-		tagOutput, err := cmd.Output()
-		if err != nil {
-			// Try with master branch
-			cmd = exec.Command("git", "-C", pluginDir, "describe", "--tags", "origin/master")
-			tagOutput, err = cmd.Output()
+	// Update GitInfo with latest commit ID
+	metadata.GitInfo.LatestCommitID = latestCommitID
+
+	// Compare commit IDs
+	if currentCommitID != latestCommitID {
+		// Get number of commits behind
+		cmd = exec.Command("git", "-C", pluginDir, "rev-list", "--count", currentCommitID+".."+latestCommitID)
+		output, err := cmd.Output()
+		commitsBehind := 0
+		if err == nil {
+			commitsBehind, _ = strconv.Atoi(strings.TrimSpace(string(output)))
 		}
 
+		// Get latest version string
 		latestVersion := ""
+		if commitsBehind > 0 {
+			latestVersion = fmt.Sprintf("%s (%d commits newer)", currentVersion, commitsBehind)
+		} else {
+			latestVersion = fmt.Sprintf("%s (newer commit)", currentVersion)
+		}
+
+		// Try to get tag information if available
+		cmd = exec.Command("git", "-C", pluginDir, "describe", "--tags", "origin/"+branch)
+		tagOutput, err := cmd.Output()
 		if err == nil {
-			latestVersion = strings.TrimSpace(string(tagOutput))
+			tag := strings.TrimSpace(string(tagOutput))
+			latestVersion = tag
 		}
 
 		return true, latestVersion

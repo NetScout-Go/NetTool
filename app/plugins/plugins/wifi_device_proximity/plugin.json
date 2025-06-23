@@ -3,17 +3,18 @@
   "name": "WiFi Device Proximity Locator",
   "description": "Locate nearby WiFi devices (access points and clients) by their signal strength with real-time proximity indicators and tracking features",
   "icon": "location_searching",
-  "icon":  "location_searching",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "interface",
       "name": "Wi-Fi Interface",
       "description": "The wireless interface to use for scanning",
       "type": "string",
       "required": true,
-      "default": "wlan0"
+      "default": "wlan0",
+      "canIterate": true
     },
     {
       "id": "scan_time",
@@ -24,7 +25,8 @@
       "default": 10,
       "min": 5,
       "max": 60,
-      "step": 5
+      "step": 5,
+      "canIterate": true
     },
     {
       "id": "scan_mode",
@@ -34,10 +36,20 @@
       "required": true,
       "default": "all",
       "options": [
-        {"value": "all", "label": "All Devices"},
-        {"value": "ap", "label": "Access Points Only"},
-        {"value": "client", "label": "Client Devices Only"}
-      ]
+        {
+          "value": "all",
+          "label": "All Devices"
+        },
+        {
+          "value": "ap",
+          "label": "Access Points Only"
+        },
+        {
+          "value": "client",
+          "label": "Client Devices Only"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "min_signal_strength",
@@ -48,7 +60,8 @@
       "default": -80,
       "min": -100,
       "max": -30,
-      "step": 5
+      "step": 5,
+      "canIterate": true
     },
     {
       "id": "target_device",
@@ -56,7 +69,8 @@
       "description": "MAC address of specific device to track (leave empty to track all devices)",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "continuous_scan",
@@ -64,7 +78,8 @@
       "description": "Continuously scan and update signal strength readings",
       "type": "boolean",
       "required": false,
-      "default": true
+      "default": true,
+      "canIterate": true
     },
     {
       "id": "proximity_alerts",
@@ -72,7 +87,8 @@
       "description": "Enable alerts when a device comes within close proximity",
       "type": "boolean",
       "required": false,
-      "default": false
+      "default": false,
+      "canIterate": true
     },
     {
       "id": "proximity_threshold",
@@ -83,7 +99,40 @@
       "default": -50,
       "min": -70,
       "max": -30,
-      "step": 5
+      "step": 5,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

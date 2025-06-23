@@ -3,17 +3,18 @@
   "name": "Wi-Fi Scanner",
   "description": "Scans for nearby Wi-Fi networks and displays signal strength, channel information, and encryption types",
   "icon": "wifi",
-  "icon":  "wifi",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "interface",
       "name": "Wi-Fi Interface",
       "description": "The wireless interface to use for scanning",
       "type": "string",
       "required": true,
-      "default": "wlan0"
+      "default": "wlan0",
+      "canIterate": true
     },
     {
       "id": "scan_time",
@@ -24,7 +25,8 @@
       "default": 5,
       "min": 1,
       "max": 30,
-      "step": 1
+      "step": 1,
+      "canIterate": true
     },
     {
       "id": "show_hidden",
@@ -32,7 +34,40 @@
       "description": "Include networks that don't broadcast their SSID",
       "type": "boolean",
       "required": false,
-      "default": false
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

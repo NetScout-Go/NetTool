@@ -3,17 +3,18 @@
   "name": "Network Packet Capture",
   "description": "Captures and analyzes network traffic using tcpdump",
   "icon": "traffic",
-  "icon":  "traffic",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "interface",
       "name": "Network Interface",
       "description": "The network interface to capture packets from",
       "type": "string",
       "required": true,
-      "default": "eth0"
+      "default": "eth0",
+      "canIterate": true
     },
     {
       "id": "capture_filter",
@@ -21,7 +22,8 @@
       "description": "BPF filter expression to filter packets (e.g., 'port 80', 'host 192.168.1.1')",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "packet_count",
@@ -32,7 +34,8 @@
       "default": 100,
       "min": 0,
       "max": 10000,
-      "step": 10
+      "step": 10,
+      "canIterate": true
     },
     {
       "id": "capture_timeout",
@@ -43,7 +46,8 @@
       "default": 10,
       "min": 0,
       "max": 300,
-      "step": 5
+      "step": 5,
+      "canIterate": true
     },
     {
       "id": "include_headers",
@@ -51,7 +55,40 @@
       "description": "Include packet headers in output",
       "type": "boolean",
       "required": false,
-      "default": true
+      "default": true,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

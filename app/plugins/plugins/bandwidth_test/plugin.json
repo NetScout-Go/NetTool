@@ -3,10 +3,10 @@
   "name": "Bandwidth Test",
   "description": "Tests upload and download speeds",
   "icon": "speed",
-  "icon":  "speed",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "server",
       "name": "Server",
@@ -15,12 +15,28 @@
       "required": false,
       "default": "auto",
       "options": [
-        {"value": "auto", "label": "Auto Select (Closest)"},
-        {"value": "us-west", "label": "US West"},
-        {"value": "us-east", "label": "US East"},
-        {"value": "eu-central", "label": "EU Central"},
-        {"value": "asia-east", "label": "Asia East"}
-      ]
+        {
+          "value": "auto",
+          "label": "Auto Select (Closest)"
+        },
+        {
+          "value": "us-west",
+          "label": "US West"
+        },
+        {
+          "value": "us-east",
+          "label": "US East"
+        },
+        {
+          "value": "eu-central",
+          "label": "EU Central"
+        },
+        {
+          "value": "asia-east",
+          "label": "Asia East"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "duration",
@@ -31,7 +47,40 @@
       "default": 10,
       "min": 5,
       "max": 30,
-      "step": 5
+      "step": 5,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

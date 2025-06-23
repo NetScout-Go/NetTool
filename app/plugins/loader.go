@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/NetScout-Go/NetTool/app/plugins/types"
@@ -76,7 +75,7 @@ func (c *Command) Run() (string, error) {
 // PluginLoader handles loading plugins from the filesystem
 type PluginLoader struct {
 	pluginsDir         string
-	plugins            []types.Plugin
+	plugins            []types.Plugin // Change to use the interface instead of struct
 	mutex              sync.Mutex
 	pluginExecuteFuncs map[string]func(map[string]interface{}) (interface{}, error)
 }
@@ -116,9 +115,15 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 
 		pluginDir := filepath.Join(p.pluginsDir, entry.Name())
 		pluginJsonPath := filepath.Join(pluginDir, "plugin.json")
+		pluginGoPath := filepath.Join(pluginDir, "plugin.go")
 
 		// Check if plugin.json exists
 		if _, err := os.Stat(pluginJsonPath); os.IsNotExist(err) {
+			continue
+		}
+
+		// Check if plugin.go exists
+		if _, err := os.Stat(pluginGoPath); os.IsNotExist(err) {
 			continue
 		}
 
@@ -130,136 +135,163 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 		}
 
 		// Parse plugin.json
-		var plugin types.Plugin
-		if err := json.Unmarshal(data, &plugin); err != nil {
+		var pluginDef types.PluginDefinition
+		if err := json.Unmarshal(data, &pluginDef); err != nil {
 			fmt.Printf("Warning: Failed to parse plugin.json for %s: %v\n", entry.Name(), err)
 			continue
 		}
 
-		// Register plugin
-		p.plugins = append(p.plugins, plugin)
-		pluginID := plugin.ID
+		// Check if plugin ID matches directory name (for consistency)
+		if pluginDef.ID != entry.Name() && entry.Name() != "plugin_"+pluginDef.ID {
+			fmt.Printf("Warning: Plugin ID '%s' doesn't match directory name '%s'\n", pluginDef.ID, entry.Name())
+		}
 
-		// Special handling for subnet_calculator
-		if pluginID == "subnet_calculator" {
-			// Check if we should try to build the plugin as a dynamic plugin
-			pluginDir := filepath.Join(p.pluginsDir, entry.Name())
-			pluginOutPath := filepath.Join(pluginDir, "subnet_calculator.so")
+		pluginID := pluginDef.ID
+		fmt.Printf("Registering plugin from filesystem: %s\n", pluginID)
 
-			// First try to build the plugin if it doesn't exist
-			if _, err := os.Stat(pluginOutPath); os.IsNotExist(err) {
-				buildCmd := fmt.Sprintf("cd %s && go build -buildmode=plugin -o subnet_calculator.so", pluginDir)
-				fmt.Printf("Building subnet_calculator plugin: %s\n", buildCmd)
-				output, err := exec.Command("bash", "-c", buildCmd).CombinedOutput()
-				if err != nil {
-					fmt.Printf("Warning: Failed to build subnet_calculator plugin: %v\n%s\n", err, string(output))
-					// Continue with the fallback method
-				} else {
-					fmt.Printf("Successfully built subnet_calculator plugin: %s\n", pluginOutPath)
-				}
+		// Create a wrapper execution function that dynamically imports and executes the plugin
+		p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {
+			// Try to build and load the plugin dynamically
+			pluginInstance, err := p.loadPlugin(pluginDir, pluginID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load plugin %s: %v", pluginID, err)
 			}
 
-			// Create a wrapper execution function
-			p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {
-				// For subnet_calculator, we'll use direct execution
-				// If that fails, adapt the parameters if needed
-				adaptedParams := make(map[string]interface{})
-				for k, v := range params {
-					adaptedParams[k] = v
-				}
+			// Execute the plugin
+			return pluginInstance.Execute(params)
+		}
 
-				// Handle action
-				action, _ := params["action"].(string)
-				adaptedParams["action"] = action
+		// Register with the registry
+		registry.RegisterPluginFunc(pluginID, p.pluginExecuteFuncs[pluginID])
+	}
 
-				// Handle the IP list for supernet, aggregate, and conflict_detect actions
-				if action == "supernet" || action == "aggregate" || action == "conflict_detect" {
-					ipListStr, _ := params["ip_list"].(string)
-					if ipListStr != "" {
-						// Split the comma-separated string into a slice
-						ipList := strings.Split(ipListStr, ",")
-						// Convert to []interface{} as required by Execute
-						ipListInterface := make([]interface{}, len(ipList))
-						for i, ip := range ipList {
-							ipListInterface[i] = strings.TrimSpace(ip)
-						}
-						adaptedParams["ip_list"] = ipListInterface
-					}
-				}
+	return p.plugins, nil
+}
 
-				// Here we would normally call the Execute function, but since we can't import it,
-				// we'll handle it through the shell command
-				cmd := fmt.Sprintf("cd %s && go run plugin.go --action=%s",
-					pluginDir, action)
+// loadPlugin loads a plugin from the given directory
+func (p *PluginLoader) loadPlugin(pluginDir string, pluginID string) (types.Plugin, error) {
+	// Try to build the plugin
+	pluginGoPath := filepath.Join(pluginDir, "plugin.go")
 
-				// Add other parameters based on the action
-				switch action {
-				case "calculate":
-					address, _ := params["address"].(string)
-					mask, _ := params["mask"].(string)
-					cmd += fmt.Sprintf(" --address=%s", address)
-					if mask != "" {
-						cmd += fmt.Sprintf(" --mask=%s", mask)
-					}
-				case "divide":
-					address, _ := params["address"].(string)
-					numSubnets, _ := params["num_subnets"].(float64)
-					cmd += fmt.Sprintf(" --address=%s --num-subnets=%d", address, int(numSubnets))
-				case "supernet", "aggregate", "conflict_detect":
-					if ipList, ok := adaptedParams["ip_list"].([]interface{}); ok && len(ipList) > 0 {
-						ipListStr := ""
-						for i, ip := range ipList {
-							if i > 0 {
-								ipListStr += ","
-							}
-							ipListStr += fmt.Sprintf("%v", ip)
-						}
-						cmd += fmt.Sprintf(" --ip-list=\"%s\"", ipListStr)
-					}
-				}
+	// Check if plugin.go exists
+	if _, err := os.Stat(pluginGoPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("plugin.go not found for %s", pluginID)
+	}
 
-				// Execute the command
-				shellCmd := exec.Command("bash", "-c", cmd)
-				output, err := shellCmd.CombinedOutput()
+	// Create a dynamic plugin that executes the plugin.go file for each operation
+	return &DynamicPlugin{
+		pluginID:   pluginID,
+		pluginDir:  pluginDir,
+		definition: nil, // Will be loaded on first GetDefinition call
+	}, nil
+}
 
-				if err != nil {
-					return nil, fmt.Errorf("failed to execute plugin %s: %v\nOutput: %s",
-						pluginID, err, string(output))
-				}
+// DynamicPlugin represents a plugin that is executed dynamically
+type DynamicPlugin struct {
+	pluginID   string
+	pluginDir  string
+	definition *types.PluginDefinition
+	mutex      sync.Mutex
+	isIterable bool
+}
 
-				// Parse the output as JSON
-				var jsonResult interface{}
-				if err := json.Unmarshal(output, &jsonResult); err != nil {
-					// If not valid JSON, return as string
-					return map[string]interface{}{
-						"result": string(output),
-						"params": adaptedParams,
-					}, nil
-				}
+// GetDefinition returns the plugin definition
+func (p *DynamicPlugin) GetDefinition() types.PluginDefinition {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-				return jsonResult, nil
-			}
+	// If we've already loaded the definition, return it
+	if p.definition != nil {
+		return *p.definition
+	}
 
-			// Register with the registry
-			registry.RegisterPluginFunc(pluginID, p.pluginExecuteFuncs[pluginID])
-			fmt.Printf("Registered subnet_calculator plugin from %s\n", pluginDir)
-		} else {
-			// For other plugins, try to execute them directly from Go files
-			p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {
-				// Get the path to the plugin.go file
-				pluginPath := filepath.Join(pluginDir, "plugin.go")
+	// Run the plugin.go file with --definition flag
+	cmdStr := fmt.Sprintf("cd %s && go run plugin.go --definition", p.pluginDir)
+	cmd := exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error getting plugin definition for %s: %v\n", p.pluginID, err)
+		// Return a default definition with error information
+		return types.PluginDefinition{
+			ID:          p.pluginID,
+			Name:        p.pluginID,
+			Description: fmt.Sprintf("Error loading plugin: %v", err),
+			Version:     "0.0.0",
+			Icon:        "exclamation-triangle",
+		}
+	}
 
-				// Try to execute the plugin by importing it
-				// For now, return a better message indicating real execution
-				return map[string]interface{}{
-					"result": fmt.Sprintf("Plugin %s executed successfully from %s", pluginID, pluginPath),
-					"params": params,
-				}, nil
+	// Parse the output as JSON
+	var definition types.PluginDefinition
+	if err := json.Unmarshal(output, &definition); err != nil {
+		fmt.Printf("Error parsing plugin definition for %s: %v\n", p.pluginID, err)
+		// Return a default definition with error information
+		return types.PluginDefinition{
+			ID:          p.pluginID,
+			Name:        p.pluginID,
+			Description: fmt.Sprintf("Error parsing definition: %v", err),
+			Version:     "0.0.0",
+			Icon:        "exclamation-triangle",
+		}
+	}
+
+	// Cache the definition
+	p.definition = &definition
+	return definition
+}
+
+// Execute runs the plugin with the given parameters
+func (p *DynamicPlugin) Execute(params map[string]interface{}) (interface{}, error) {
+	// Convert parameters to JSON
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal parameters: %v", err)
+	}
+
+	// Run the plugin.go file with the parameters
+	cmdStr := fmt.Sprintf("cd %s && go run plugin.go --execute='%s'", p.pluginDir, string(paramsJSON))
+	cmd := exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute plugin %s: %v\nOutput: %s", p.pluginID, err, string(output))
+	}
+
+	// Try to parse the output as JSON
+	var result interface{}
+	if err := json.Unmarshal(output, &result); err != nil {
+		// If not valid JSON, return as string
+		return map[string]interface{}{
+			"result": string(output),
+			"params": params,
+		}, nil
+	}
+
+	return result, nil
+}
+
+// IsIterable checks if the plugin implements the IterablePlugin interface
+func (p *DynamicPlugin) IsIterable() bool {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	// Check if we've already determined if the plugin is iterable
+	if p.definition != nil {
+		// Check if any parameter has canIterate set to true
+		for _, param := range p.definition.Parameters {
+			if param.CanIterate {
+				return true
 			}
 		}
 	}
 
-	return p.plugins, nil
+	// Check if the plugin.go file implements IterablePlugin interface
+	cmdStr := fmt.Sprintf("cd %s && grep -q 'BaseIterablePlugin\\|IterablePlugin\\|ShouldContinueIteration' plugin.go", p.pluginDir)
+	cmd := exec.Command("bash", "-c", cmdStr)
+	err := cmd.Run()
+
+	// If grep found a match, the plugin implements the interface
+	p.isIterable = err == nil
+	return p.isIterable
 }
 
 // GetPluginExecuteFunc returns the Execute function for a plugin

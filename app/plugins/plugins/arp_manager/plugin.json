@@ -3,10 +3,10 @@
   "name": "ARP Manager",
   "description": "View and manage ARP table entries, including adding, deleting, and flushing entries",
   "icon": "network",
-  "icon":  "network",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "action",
       "name": "Action",
@@ -15,12 +15,28 @@
       "required": true,
       "default": "show",
       "options": [
-        {"value": "show", "label": "Show ARP Table"},
-        {"value": "get", "label": "Get ARP Entry"},
-        {"value": "add", "label": "Add ARP Entry"},
-        {"value": "delete", "label": "Delete ARP Entry"},
-        {"value": "flush", "label": "Flush ARP Cache"}
-      ]
+        {
+          "value": "show",
+          "label": "Show ARP Table"
+        },
+        {
+          "value": "get",
+          "label": "Get ARP Entry"
+        },
+        {
+          "value": "add",
+          "label": "Add ARP Entry"
+        },
+        {
+          "value": "delete",
+          "label": "Delete ARP Entry"
+        },
+        {
+          "value": "flush",
+          "label": "Flush ARP Cache"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "interface",
@@ -28,7 +44,8 @@
       "description": "The network interface to use (e.g., eth0, wlan0)",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "ip_address",
@@ -36,7 +53,8 @@
       "description": "IP address for the ARP entry",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "mac_address",
@@ -44,7 +62,8 @@
       "description": "MAC address for the ARP entry (format: 00:11:22:33:44:55)",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "entry_type",
@@ -54,10 +73,20 @@
       "required": false,
       "default": "permanent",
       "options": [
-        {"value": "permanent", "label": "Permanent"},
-        {"value": "temp", "label": "Temporary"},
-        {"value": "pub", "label": "Published (Proxy ARP)"}
-      ]
+        {
+          "value": "permanent",
+          "label": "Permanent"
+        },
+        {
+          "value": "temp",
+          "label": "Temporary"
+        },
+        {
+          "value": "pub",
+          "label": "Published (Proxy ARP)"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "verbose",
@@ -65,7 +94,8 @@
       "description": "Show detailed output",
       "type": "boolean",
       "required": false,
-      "default": false
+      "default": false,
+      "canIterate": true
     },
     {
       "id": "numeric",
@@ -73,7 +103,40 @@
       "description": "Show numeric addresses without hostname resolution",
       "type": "boolean",
       "required": false,
-      "default": false
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

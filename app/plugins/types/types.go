@@ -1,17 +1,7 @@
 package types
 
-// ParameterType defines the type of a plugin parameter
-type ParameterType string
-
-const (
-	TypeString  ParameterType = "string"
-	TypeNumber  ParameterType = "number"
-	TypeBoolean ParameterType = "boolean"
-	TypeSelect  ParameterType = "select"
-	TypeRange   ParameterType = "range"
-)
-
 // Parameter defines a plugin parameter
+// This is a legacy type, use PluginParam instead
 type Parameter struct {
 	ID          string        `json:"id"`
 	Name        string        `json:"name"`
@@ -25,14 +15,9 @@ type Parameter struct {
 	Step        *float64      `json:"step,omitempty"`    // For number/range type
 }
 
-// Option defines an option for a select parameter
-type Option struct {
-	Value interface{} `json:"value"`
-	Label string      `json:"label"`
-}
-
-// Plugin represents a NetTool plugin
-type Plugin struct {
+// LegacyPlugin represents a NetTool plugin structure
+// This is a legacy type, use PluginDefinition or the Plugin interface instead
+type LegacyPlugin struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
@@ -41,6 +26,7 @@ type Plugin struct {
 }
 
 // PluginExecutor is the interface that must be implemented by all plugins
+// This is a legacy interface, use the Plugin interface instead
 type PluginExecutor interface {
 	Execute(params map[string]interface{}) (interface{}, error)
 }

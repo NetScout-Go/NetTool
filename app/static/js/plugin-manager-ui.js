@@ -162,6 +162,7 @@ const PluginManagerUI = {
                 '<td>' +
                 '<div class="d-flex flex-column">' +
                 '<span>' + (plugin.version || 'N/A') + '</span>' +
+                (plugin.gitVersion ? '<span class="small text-muted">Git: ' + plugin.gitVersion + '</span>' : '') +
                 (plugin.updateAvailable ? '<span class="badge bg-success mt-1">Update: ' + plugin.latestVersion + '</span>' : '') +
                 '</div>' +
                 '</td>' +

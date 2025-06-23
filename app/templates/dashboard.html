@@ -379,7 +379,13 @@
     <!-- Last update info -->
     <div class="row">
         <div class="col-12 text-end text-muted small">
-            <span>Last Updated: <span id="lastUpdated">--</span></span>
+            <div class="d-flex justify-content-end align-items-center">
+                <button id="refreshToggleBtn" class="btn btn-sm btn-outline-warning me-2" onclick="toggleAutoRefresh()" title="Pause Auto-Refresh">
+                    <i class="bi bi-pause-circle"></i>
+                </button>
+                <span id="refreshStatus" class="badge bg-success me-2">Auto-Refreshing</span>
+                <span>Last Updated: <span id="lastUpdated">--</span></span>
+            </div>
         </div>
     </div>
 </div>

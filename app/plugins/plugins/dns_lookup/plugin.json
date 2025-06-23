@@ -3,17 +3,18 @@
   "name": "DNS Lookup",
   "description": "Performs DNS lookups for a domain",
   "icon": "dns",
-  "icon":  "dns",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "domain",
       "name": "Domain",
       "description": "The domain name to lookup",
       "type": "string",
       "required": true,
-      "default": "example.com"
+      "default": "example.com",
+      "canIterate": true
     },
     {
       "id": "recordType",
@@ -23,14 +24,68 @@
       "required": false,
       "default": "A",
       "options": [
-        {"value": "A", "label": "A (IPv4 Address)"},
-        {"value": "AAAA", "label": "AAAA (IPv6 Address)"},
-        {"value": "MX", "label": "MX (Mail Exchange)"},
-        {"value": "NS", "label": "NS (Name Server)"},
-        {"value": "TXT", "label": "TXT (Text)"},
-        {"value": "CNAME", "label": "CNAME (Canonical Name)"},
-        {"value": "ALL", "label": "All Records"}
-      ]
+        {
+          "value": "A",
+          "label": "A (IPv4 Address)"
+        },
+        {
+          "value": "AAAA",
+          "label": "AAAA (IPv6 Address)"
+        },
+        {
+          "value": "MX",
+          "label": "MX (Mail Exchange)"
+        },
+        {
+          "value": "NS",
+          "label": "NS (Name Server)"
+        },
+        {
+          "value": "TXT",
+          "label": "TXT (Text)"
+        },
+        {
+          "value": "CNAME",
+          "label": "CNAME (Canonical Name)"
+        },
+        {
+          "value": "ALL",
+          "label": "All Records"
+        }
+      ],
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

@@ -3,17 +3,18 @@
   "name": "Reverse DNS Lookup",
   "description": "Performs reverse DNS lookups to get hostnames from IP addresses with batch processing capabilities",
   "icon": "dns",
-  "icon":  "dns",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "ip_addresses",
       "name": "IP Addresses",
       "description": "List of IP addresses for reverse lookup (one per line or comma-separated)",
       "type": "string",
       "required": true,
-      "default": "8.8.8.8"
+      "default": "8.8.8.8",
+      "canIterate": true
     },
     {
       "id": "timeout",
@@ -24,7 +25,8 @@
       "default": 5,
       "min": 1,
       "max": 30,
-      "step": 1
+      "step": 1,
+      "canIterate": true
     },
     {
       "id": "dns_server",
@@ -32,7 +34,8 @@
       "description": "DNS server to use for lookups (leave blank for system default)",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "concurrent_lookups",
@@ -43,7 +46,40 @@
       "default": 5,
       "min": 1,
       "max": 50,
-      "step": 1
+      "step": 1,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

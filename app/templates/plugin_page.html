@@ -6,6 +6,19 @@
                 <div class="card-body">
                     <h5 class="card-title">{{ .plugin.Name }}</h5>
                     <p class="card-text">{{ .plugin.Description }}</p>
+                    <div class="small text-muted mt-2">
+                        <span><i class="bi bi-info-circle"></i> Version: {{ .plugin.Version }}</span>
+                        <span class="ms-3"><i class="bi bi-person"></i> Author: {{ .plugin.Author }}</span>
+                        
+                        <!-- Iteration support indicator -->
+                        {{range .plugin.Parameters}}
+                            {{if and (eq .ID "continueToIterate") (.CanIterate)}}
+                            <span class="ms-3 badge bg-info">
+                                <i class="bi bi-arrow-repeat"></i> Supports Iteration
+                            </span>
+                            {{end}}
+                        {{end}}
+                    </div>
                 </div>
             </div>
         </div>
@@ -114,8 +127,16 @@
 {{end}}
 
 {{define "scripts"}}
+<script src="/static/js/plugin-iteration.js"></script>
 <script>
+    // Global variables
+    let lastParams = null;
+    let iterationManager = null;
+    
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize iteration manager for this plugin
+        iterationManager = new PluginIterationManager('{{.plugin.ID}}');
+        
         // Handle range inputs to display current value
         document.querySelectorAll('input[type="range"]').forEach(range => {
             const valueDisplay = document.getElementById(`${range.id}-value`);
@@ -159,7 +180,6 @@
     });
 
     const pluginID = '{{ .plugin.ID }}';
-    let lastParams = null;
     let lastResult = null;
 
     // Run the plugin with form parameters
@@ -191,7 +211,14 @@
         // Save params for refresh
         lastParams = params;
         
-        // Call API
+        // Check for iteration
+        if (params.continueToIterate === true) {
+            // Run with iteration
+            runWithIteration(params);
+            return;
+        }
+        
+        // Call API for non-iterative run
         fetch(`/api/plugins/${pluginID}/run`, {
             method: 'POST',
             headers: {
@@ -231,6 +258,179 @@
                 </div>
             `;
         });
+    }
+
+    // Run with iteration support
+    function runWithIteration(params) {
+        // Add status indicator for iteration
+        const resultCard = document.querySelector('.card:has(#pluginResults)');
+        
+        // Check if we already have an iteration status element
+        let iterationStatus = document.getElementById('iterationStatus');
+        if (!iterationStatus) {
+            // Create iteration status element
+            iterationStatus = document.createElement('div');
+            iterationStatus.id = 'iterationStatus';
+            iterationStatus.className = 'card-footer bg-light d-flex justify-content-between align-items-center';
+            iterationStatus.innerHTML = `
+                <span>
+                    <i class="bi bi-arrow-repeat spin me-1"></i>
+                    <span id="iterationStatusText">Starting iteration...</span>
+                </span>
+                <div>
+                    <span class="badge bg-primary me-2" id="iterationCount">0</span>
+                    <button class="btn btn-sm btn-outline-danger" id="stopIterationBtn">
+                        <i class="bi bi-stop-circle"></i> Stop
+                    </button>
+                </div>
+            `;
+            
+            resultCard.appendChild(iterationStatus);
+            
+            // Add stop button event listener
+            document.getElementById('stopIterationBtn').addEventListener('click', function() {
+                if (iterationManager) {
+                    iterationManager.stop();
+                    updateIterationUI(false, 'Stopped');
+                }
+            });
+        } else {
+            // Reset iteration status
+            document.getElementById('iterationStatusText').textContent = 'Starting iteration...';
+            document.getElementById('iterationCount').textContent = '0';
+            iterationStatus.classList.remove('d-none');
+        }
+        
+        // Create iteration progress container if it doesn't exist
+        let iterationResults = document.getElementById('iterationResultsContainer');
+        if (!iterationResults) {
+            iterationResults = document.createElement('div');
+            iterationResults.id = 'iterationResultsContainer';
+            iterationResults.className = 'iteration-results mt-3';
+            iterationResults.innerHTML = `
+                <h6><i class="bi bi-list-ul me-1"></i> Iteration History</h6>
+                <div class="iteration-history" id="iterationHistory"></div>
+            `;
+            
+            document.getElementById('pluginResults').appendChild(iterationResults);
+        } else {
+            // Clear previous iteration results
+            document.getElementById('iterationHistory').innerHTML = '';
+        }
+        
+        // Start the iteration
+        iterationManager.start(params, 
+            // Result callback
+            (result, iterationCount) => {
+                // Update UI with latest iteration result
+                document.getElementById('iterationCount').textContent = iterationCount + 1;
+                document.getElementById('iterationStatusText').textContent = 'Iteration in progress';
+                
+                // Display the current result
+                displayPluginResults(result);
+                
+                // Add to history
+                addIterationToHistory(result, iterationCount);
+                
+                // Update timestamp
+                const timestamp = new Date().toLocaleString();
+                document.getElementById('resultTimestamp').textContent = `Last run: ${timestamp}`;
+                
+                // Show results container
+                document.getElementById('resultsLoading').classList.add('d-none');
+                document.getElementById('pluginResults').classList.remove('d-none');
+            },
+            // Complete callback
+            (results) => {
+                // Update UI to show iteration is complete
+                updateIterationUI(false, 'Complete');
+                
+                // Save the last result
+                if (results.length > 0) {
+                    lastResult = results[results.length - 1].result;
+                }
+            }
+        );
+        
+        // Update UI to show iteration is active
+        updateIterationUI(true, 'Starting');
+    }
+    
+    // Update iteration UI elements
+    function updateIterationUI(isActive, status) {
+        const statusText = document.getElementById('iterationStatusText');
+        const statusIcon = statusText.previousElementSibling;
+        const statusBadge = document.getElementById('iterationCount');
+        const iterationStatus = document.getElementById('iterationStatus');
+        
+        if (isActive) {
+            statusText.textContent = status || 'Iteration active';
+            statusIcon.className = 'bi bi-arrow-repeat spin me-1';
+            iterationStatus.classList.remove('bg-light', 'bg-success', 'bg-danger');
+            iterationStatus.classList.add('bg-info');
+            
+            // Disable the run button
+            document.getElementById('runPluginBtn').disabled = true;
+            document.getElementById('runPluginBtn').innerHTML = '<i class="bi bi-hourglass-split"></i> Running...';
+        } else {
+            statusText.textContent = status || 'Iteration stopped';
+            statusIcon.className = 'bi bi-check-circle me-1';
+            iterationStatus.classList.remove('bg-light', 'bg-info');
+            
+            if (status === 'Stopped') {
+                iterationStatus.classList.add('bg-danger');
+            } else {
+                iterationStatus.classList.add('bg-success');
+            }
+            
+            // Re-enable the run button
+            document.getElementById('runPluginBtn').disabled = false;
+            document.getElementById('runPluginBtn').innerHTML = '<i class="bi bi-play-fill"></i> Run Plugin';
+        }
+    }
+    
+    // Add an iteration result to the history
+    function addIterationToHistory(result, iterationCount) {
+        const historyContainer = document.getElementById('iterationHistory');
+        
+        // Create a new history entry
+        const entry = document.createElement('div');
+        entry.className = 'iteration-entry';
+        
+        // Format result for display
+        let resultSummary = '';
+        
+        // Different result formatting based on plugin type
+        if (result.ping) {
+            // Ping plugin
+            resultSummary = `Success: ${result.success}, Latency: ${result.stats?.rttAvg || 'N/A'} ms`;
+        } else if (result.speed) {
+            // Speed test plugin
+            resultSummary = `Download: ${result.speed?.download || 'N/A'} Mbps, Upload: ${result.speed?.upload || 'N/A'} Mbps`;
+        } else {
+            // Generic result summary
+            resultSummary = 'Completed';
+        }
+        
+        entry.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="iteration-number">#${iterationCount + 1}</span>
+                <span class="iteration-result">${resultSummary}</span>
+                <span class="iteration-time small text-muted">${new Date().toLocaleTimeString()}</span>
+            </div>
+        `;
+        
+        // Add to history container (newest first)
+        if (historyContainer.firstChild) {
+            historyContainer.insertBefore(entry, historyContainer.firstChild);
+        } else {
+            historyContainer.appendChild(entry);
+        }
+        
+        // Limit history to 10 entries
+        if (historyContainer.children.length > 10) {
+            historyContainer.removeChild(historyContainer.lastChild);
+        }
     }
 
     // Display plugin results based on plugin type

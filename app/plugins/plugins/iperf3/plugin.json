@@ -3,7 +3,6 @@
   "name": "iPerf3 Throughput Test",
   "description": "Test network throughput with iPerf3 between this device and a remote iPerf3 server",
   "icon": "speed",
-  "icon":  "speed",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
@@ -14,7 +13,8 @@
       "description": "IP or hostname of the iPerf3 server",
       "type": "string",
       "required": true,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "port",
@@ -22,7 +22,8 @@
       "description": "iPerf3 server port",
       "type": "number",
       "required": false,
-      "default": 5201
+      "default": 5201,
+      "canIterate": true
     },
     {
       "id": "duration",
@@ -33,7 +34,8 @@
       "default": 10,
       "min": 1,
       "max": 60,
-      "step": 1
+      "step": 1,
+      "canIterate": true
     },
     {
       "id": "protocol",
@@ -43,9 +45,16 @@
       "required": false,
       "default": "tcp",
       "options": [
-        {"value": "tcp", "label": "TCP"},
-        {"value": "udp", "label": "UDP"}
-      ]
+        {
+          "value": "tcp",
+          "label": "TCP"
+        },
+        {
+          "value": "udp",
+          "label": "UDP"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "reverse",
@@ -53,7 +62,8 @@
       "description": "Run in reverse mode (server sends, client receives)",
       "type": "boolean",
       "required": false,
-      "default": false
+      "default": false,
+      "canIterate": true
     },
     {
       "id": "parallel",
@@ -64,7 +74,40 @@
       "default": 1,
       "min": 1,
       "max": 10,
-      "step": 1
+      "step": 1,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

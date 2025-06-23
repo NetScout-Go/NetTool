@@ -1,0 +1,72 @@
+/* Plugin iteration styles */
+.iteration-results {
+    max-height: 300px;
+    overflow-y: auto;
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+}
+
+.iteration-entry {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+}
+
+.iteration-entry:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+body.dark-mode .iteration-entry:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.iteration-number {
+    font-weight: bold;
+    min-width: 30px;
+}
+
+.iteration-result {
+    flex-grow: 1;
+    margin: 0 10px;
+}
+
+.iteration-time {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+#iterationStatus {
+    transition: all 0.3s ease;
+}
+
+#iterationStatus.bg-info {
+    border-top: 1px solid rgba(13, 202, 240, 0.3);
+}
+
+#iterationStatus.bg-success {
+    border-top: 1px solid rgba(25, 135, 84, 0.3);
+}
+
+#iterationStatus.bg-danger {
+    border-top: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.spin {
+    animation: spin 1.5s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#stopIterationBtn {
+    opacity: 0.8;
+    transition: all 0.2s;
+}
+
+#stopIterationBtn:hover {
+    opacity: 1;
+    transform: scale(1.05);
+}

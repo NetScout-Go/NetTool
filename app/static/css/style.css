@@ -901,5 +901,45 @@ body.dark-mode .signal-text {
 }
 
 .signal-bar.bg-danger {
-    background: linear-gradient(to right, #dc3545, #d63384);
+    background: linear-gradient(to right, #dc3545, #c82333);
+}
+
+/* Auto-refresh controls */
+#refreshToggleBtn {
+    transition: all 0.3s ease;
+}
+
+#refreshToggleBtn:hover {
+    transform: scale(1.1);
+}
+
+#refreshStatus {
+    transition: all 0.3s ease;
+}
+
+.bi-arrow-repeat.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Continue Iteration Modal */
+#continueIterationModal .modal-header {
+    border-bottom: 3px solid var(--warning-color);
+}
+
+#continueIterationModal .modal-content {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+body.dark-mode #continueIterationModal .modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+body.dark-mode #continueIterationModal .btn-close {
+    filter: invert(1);
 }

@@ -3,10 +3,10 @@
   "name": "External Plugin Interface",
   "description": "Interface for running plugins built in other programming languages",
   "icon": "extension",
-  "icon":  "extension",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "plugin_type",
       "name": "Plugin Type",
@@ -15,17 +15,28 @@
       "required": true,
       "default": "python",
       "options": [
-        {"value": "python", "label": "Python Plugin"},
-        {"value": "bash", "label": "Bash Plugin"},
-        {"value": "custom", "label": "Custom Plugin (provide path)"}
-      ]
+        {
+          "value": "python",
+          "label": "Python Plugin"
+        },
+        {
+          "value": "bash",
+          "label": "Bash Plugin"
+        },
+        {
+          "value": "custom",
+          "label": "Custom Plugin (provide path)"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "plugin_path",
       "name": "Custom Plugin Path",
       "description": "Absolute path to the external plugin executable (only needed for custom plugins)",
       "type": "string",
-      "required": false
+      "required": false,
+      "canIterate": true
     },
     {
       "id": "timeout",
@@ -36,7 +47,8 @@
       "default": 30,
       "min": 1,
       "max": 300,
-      "step": 1
+      "step": 1,
+      "canIterate": true
     },
     {
       "id": "custom_params",
@@ -44,7 +56,40 @@
       "description": "JSON string of additional parameters to pass to the external plugin",
       "type": "string",
       "required": false,
-      "default": "{}"
+      "default": "{}",
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

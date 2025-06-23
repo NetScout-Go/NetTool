@@ -3,17 +3,18 @@
   "name": "Wi-Fi Device Locator",
   "description": "Helps locate nearby Wi-Fi devices (access points and clients) by displaying their signal strength and other information",
   "icon": "wifi",
-  "icon":  "wifi",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "interface",
       "name": "Wi-Fi Interface",
       "description": "The wireless interface to use for scanning",
       "type": "string",
       "required": true,
-      "default": "wlan0"
+      "default": "wlan0",
+      "canIterate": true
     },
     {
       "id": "scan_time",
@@ -24,7 +25,8 @@
       "default": 10,
       "min": 5,
       "max": 60,
-      "step": 5
+      "step": 5,
+      "canIterate": true
     },
     {
       "id": "scan_mode",
@@ -34,10 +36,20 @@
       "required": true,
       "default": "all",
       "options": [
-        {"value": "all", "label": "All Devices"},
-        {"value": "ap", "label": "Access Points Only"},
-        {"value": "client", "label": "Client Devices Only"}
-      ]
+        {
+          "value": "all",
+          "label": "All Devices"
+        },
+        {
+          "value": "ap",
+          "label": "Access Points Only"
+        },
+        {
+          "value": "client",
+          "label": "Client Devices Only"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "min_signal_strength",
@@ -48,7 +60,8 @@
       "default": -80,
       "min": -100,
       "max": -30,
-      "step": 5
+      "step": 5,
+      "canIterate": true
     },
     {
       "id": "continuous_scan",
@@ -56,7 +69,40 @@
       "description": "Continuously update signal strength (useful for locating devices)",
       "type": "boolean",
       "required": false,
-      "default": false
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

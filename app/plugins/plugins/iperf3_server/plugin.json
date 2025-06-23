@@ -3,7 +3,6 @@
   "name": "iPerf3 Server",
   "description": "Start an iPerf3 server on this device to enable bandwidth testing from other devices",
   "icon": "dns",
-  "icon":  "dns",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
@@ -14,7 +13,8 @@
       "description": "Port to listen on for iPerf3 connections",
       "type": "number",
       "required": false,
-      "default": 5201
+      "default": 5201,
+      "canIterate": true
     },
     {
       "id": "bind_address",
@@ -22,7 +22,8 @@
       "description": "IP address to bind the server to (empty for all interfaces)",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "canIterate": true
     },
     {
       "id": "protocol",
@@ -32,10 +33,20 @@
       "required": false,
       "default": "both",
       "options": [
-        {"value": "both", "label": "TCP & UDP"},
-        {"value": "tcp", "label": "TCP Only"},
-        {"value": "udp", "label": "UDP Only"}
-      ]
+        {
+          "value": "both",
+          "label": "TCP & UDP"
+        },
+        {
+          "value": "tcp",
+          "label": "TCP Only"
+        },
+        {
+          "value": "udp",
+          "label": "UDP Only"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "duration",
@@ -46,7 +57,8 @@
       "default": 30,
       "min": 0,
       "max": 1440,
-      "step": 5
+      "step": 5,
+      "canIterate": true
     },
     {
       "id": "action",
@@ -56,10 +68,52 @@
       "required": true,
       "default": "start",
       "options": [
-        {"value": "start", "label": "Start Server"},
-        {"value": "stop", "label": "Stop Server"},
-        {"value": "status", "label": "Check Status"}
-      ]
+        {
+          "value": "start",
+          "label": "Start Server"
+        },
+        {
+          "value": "stop",
+          "label": "Stop Server"
+        },
+        {
+          "value": "status",
+          "label": "Check Status"
+        }
+      ],
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

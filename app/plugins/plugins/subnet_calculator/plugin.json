@@ -3,10 +3,10 @@
   "name": "Subnet Calculator",
   "description": "IP subnet calculator for analyzing network addresses, calculating subnet masks, and planning network segmentation",
   "icon": "diagram-3",
-  "icon":  "diagram-3",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
+  "parameters": [
     {
       "id": "action",
       "name": "Action",
@@ -35,7 +35,8 @@
           "value": "conflict_detect",
           "label": "Detect Network Conflicts"
         }
-      ]
+      ],
+      "canIterate": true
     },
     {
       "id": "address",
@@ -43,14 +44,16 @@
       "description": "IP address (IPv4 or IPv6) with or without CIDR notation",
       "type": "string",
       "required": true,
-      "default": "192.168.1.0/24"
+      "default": "192.168.1.0/24",
+      "canIterate": true
     },
     {
       "id": "mask",
       "name": "Subnet Mask",
       "description": "Subnet mask (e.g., '255.255.255.0' or '24') if not included in the address",
       "type": "string",
-      "required": false
+      "required": false,
+      "canIterate": true
     },
     {
       "id": "subnet_bits",
@@ -61,7 +64,8 @@
       "default": 0,
       "min": 0,
       "max": 32,
-      "step": 1
+      "step": 1,
+      "canIterate": true
     },
     {
       "id": "num_subnets",
@@ -72,7 +76,8 @@
       "default": 4,
       "min": 2,
       "max": 256,
-      "step": 1
+      "step": 1,
+      "canIterate": true
     },
     {
       "id": "ip_list",
@@ -80,7 +85,40 @@
       "description": "Comma-separated list of IP addresses or subnets (for supernet action)",
       "type": "string",
       "required": false,
-      "default": "192.168.1.0/24,192.168.2.0/24"
+      "default": "192.168.1.0/24,192.168.2.0/24",
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }

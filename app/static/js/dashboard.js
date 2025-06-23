@@ -27,14 +27,19 @@ let speedTestTimer = null;
 let socket = null;
 let reconnectTimeout = null;
 
+// Auto-refresh control variables
+let autoRefreshEnabled = true;
+let autoRefreshInterval = null;
+let autoRefreshPauseTime = null;
+
 // Initialize dashboard on document load
 document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
     initializeWebSocket();
     fetchNetworkInfo();
     
-    // Refresh data periodically in case WebSocket fails
-    setInterval(fetchNetworkInfo, 10000);
+    // Setup automatic refresh functionality
+    startAutoRefresh();
     
     // Set status indicators pulse effect
     setInterval(() => {
@@ -44,6 +49,21 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => ind.classList.remove('pulse'), 1000);
         });
     }, 2000);
+    
+    // Add listener for the main refresh button in the header
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            // Manually fetch new data
+            fetchNetworkInfo();
+            
+            // Visual feedback
+            this.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Refreshing...';
+            setTimeout(() => {
+                this.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
+            }, 1000);
+        });
+    }
 
     // Add listeners to run speed test when connection is detected
     document.addEventListener('connection-status-change', checkAndRunSpeedTest);
@@ -268,13 +288,14 @@ function initializeWebSocket() {
     };
     
     socket.onmessage = function(event) {
-        try {
-            const data = JSON.parse(event.data);
+        try { const data = JSON.parse(event.data);
             if (data.type === 'network_update') {
                 updateDashboard(data.data);
             }
         } catch (error) {
             console.error('Error processing WebSocket message:', error);
+            // Log the data that caused the error
+            console.error('Raw WebSocket data:', event.data);
         }
     };
     
@@ -852,6 +873,155 @@ function updateTimestamp(data) {
     }
 }
 
+// Start auto-refresh functionality
+function startAutoRefresh() {
+    // Clear any existing interval
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    
+    // Set the auto-refresh flag
+    autoRefreshEnabled = true;
+    autoRefreshPauseTime = null;
+    
+    // Start periodic data refresh
+    autoRefreshInterval = setInterval(fetchNetworkInfo, 10000);
+    
+    // Update UI to show auto-refresh is active
+    updateAutoRefreshUI();
+    
+    console.log("Auto-refresh started");
+}
+
+// Pause auto-refresh functionality
+function pauseAutoRefresh() {
+    // Clear the interval
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+    
+    // Set the auto-refresh flag
+    autoRefreshEnabled = false;
+    autoRefreshPauseTime = new Date();
+    
+    // Update UI to show auto-refresh is paused
+    updateAutoRefreshUI();
+    
+    console.log("Auto-refresh paused");
+    
+    // After 2 minutes of inactivity, ask if the user wants to resume
+    setTimeout(() => {
+        if (!autoRefreshEnabled) {
+            askToContinueIteration();
+        }
+    }, 2 * 60 * 1000);
+}
+
+// Toggle auto-refresh functionality
+function toggleAutoRefresh() {
+    if (autoRefreshEnabled) {
+        pauseAutoRefresh();
+    } else {
+        startAutoRefresh();
+    }
+}
+
+// Update UI elements related to auto-refresh
+function updateAutoRefreshUI() {
+    // Update refresh button if it exists
+    const refreshButton = document.getElementById('refreshToggleBtn');
+    if (refreshButton) {
+        if (autoRefreshEnabled) {
+            refreshButton.innerHTML = '<i class="bi bi-pause-circle"></i>';
+            refreshButton.setAttribute('title', 'Pause Auto-Refresh');
+            refreshButton.classList.remove('btn-outline-success');
+            refreshButton.classList.add('btn-outline-warning');
+        } else {
+            refreshButton.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
+            refreshButton.setAttribute('title', 'Resume Auto-Refresh');
+            refreshButton.classList.remove('btn-outline-warning');
+            refreshButton.classList.add('btn-outline-success');
+        }
+    }
+    
+    // Update any status indicators
+    const refreshStatusIndicator = document.getElementById('refreshStatus');
+    if (refreshStatusIndicator) {
+        refreshStatusIndicator.textContent = autoRefreshEnabled ? 'Auto-Refreshing' : 'Paused';
+        refreshStatusIndicator.className = autoRefreshEnabled ? 
+            'badge bg-success' : 'badge bg-warning';
+    }
+}
+
+// Ask user if they want to continue iteration (auto-refresh)
+function askToContinueIteration() {
+    // Check if the modal already exists
+    let modal = document.getElementById('continueIterationModal');
+    
+    // If it doesn't exist, create it
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'continueIterationModal';
+        modal.setAttribute('tabindex', '-1');
+        modal.setAttribute('aria-labelledby', 'continueIterationModalLabel');
+        modal.setAttribute('aria-hidden', 'true');
+        
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="continueIterationModalLabel">
+                            <i class="bi bi-question-circle text-warning"></i> Continue Auto-Refresh?
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Auto-refresh has been paused for ${getPauseDuration()} minutes. Would you like to resume automatic updates?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            Keep Paused
+                        </button>
+                        <button type="button" class="btn btn-primary" id="resumeIterationBtn">
+                            <i class="bi bi-arrow-repeat"></i> Resume Updates
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add event listener for the resume button
+        document.getElementById('resumeIterationBtn').addEventListener('click', function() {
+            startAutoRefresh();
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            modalInstance.hide();
+        });
+    } else {
+        // Update the pause duration in the existing modal
+        const durationElement = modal.querySelector('.modal-body p');
+        if (durationElement) {
+            durationElement.textContent = `Auto-refresh has been paused for ${getPauseDuration()} minutes. Would you like to resume automatic updates?`;
+        }
+    }
+    
+    // Show the modal
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+}
+
+// Get the pause duration in minutes
+function getPauseDuration() {
+    if (!autoRefreshPauseTime) return 0;
+    
+    const now = new Date();
+    const diffMs = now - autoRefreshPauseTime;
+    return Math.round(diffMs / (60 * 1000));
+}
+
 // Function to run a bandwidth test
 function runSpeedTest() {
     if (speedTestInProgress) return; // Don't run if test is already in progress
@@ -921,12 +1091,11 @@ function runSpeedTest() {
             console.error(`API error: ${response.status} ${response.statusText}`);
             // Try to get more information from the response body
             return response.text().then(text => {
-                try {
-                    // Try to parse as JSON
-                    const errorData = JSON.parse(text);
-                    throw new Error(`Server error: ${errorData.error || response.status}`);
+                try { const errorData = JSON.parse(text);
+                    throw new Error(`Server error: ${errorData.error || errorData.message || response.status}`);
                 } catch (parseError) {
                     // If it's not JSON, just use the text
+                    console.error('JSON parse error:', parseError);
                     throw new Error(`Network response was not ok: ${response.status} - ${text || response.statusText}`);
                 }
             });
@@ -1102,5 +1271,28 @@ function updateElementText(elementId, text) {
         element.textContent = text;
     } else {
         console.error(`Failed to update element: '${elementId}' not found in DOM!`);
+    }
+}
+
+// Start automatic data refresh
+function startAutoRefresh() {
+    if (autoRefreshEnabled) {
+        autoRefreshInterval = setInterval(() => {
+            fetchNetworkInfo();
+        }, 10000);
+    }
+}
+
+// Pause automatic data refresh
+function pauseAutoRefresh() {
+    autoRefreshEnabled = false;
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+    
+    // Ask user if they want to continue to iterate
+    const continueIterate = confirm("Automatic data refresh is paused. Do you want to continue to iterate?");
+    if (continueIterate) {
+        autoRefreshEnabled = true;
+        startAutoRefresh();
     }
 }

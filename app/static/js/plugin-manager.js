@@ -77,6 +77,8 @@ const PluginManager = {
                     console.log('Loaded cached results for plugin:', this.activePluginId);
                 } catch (e) {
                     console.error('Error loading cached results:', e);
+                    // Log the raw cached data that caused the error
+                    console.error('Raw cached data:', cachedResults);
                     localStorage.removeItem(`plugin_results_${this.activePluginId}`);
                 }
             }

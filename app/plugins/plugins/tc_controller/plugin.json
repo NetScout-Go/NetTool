@@ -3,7 +3,6 @@
   "name": "Traffic Control (QoS)",
   "description": "Simulate network conditions and test Quality of Service using Linux Traffic Control (tc)",
   "icon": "tune",
-  "icon":  "tune",
   "version": "1.0.0",
   "author": "NetScout-Go",
   "license": "MIT",
@@ -14,7 +13,8 @@
       "description": "Network interface to apply traffic control rules",
       "type": "string",
       "required": true,
-      "default": "eth0"
+      "default": "eth0",
+      "canIterate": true
     },
     {
       "id": "mode",
@@ -24,13 +24,32 @@
       "required": true,
       "default": "bandwidth",
       "options": [
-        {"value": "bandwidth", "label": "Bandwidth Limit"},
-        {"value": "latency", "label": "Latency"},
-        {"value": "packet_loss", "label": "Packet Loss"},
-        {"value": "jitter", "label": "Jitter"},
-        {"value": "combination", "label": "Combined Conditions"},
-        {"value": "reset", "label": "Reset All Rules"}
-      ]
+        {
+          "value": "bandwidth",
+          "label": "Bandwidth Limit"
+        },
+        {
+          "value": "latency",
+          "label": "Latency"
+        },
+        {
+          "value": "packet_loss",
+          "label": "Packet Loss"
+        },
+        {
+          "value": "jitter",
+          "label": "Jitter"
+        },
+        {
+          "value": "combination",
+          "label": "Combined Conditions"
+        },
+        {
+          "value": "reset",
+          "label": "Reset All Rules"
+        }
+      ],
+      "canIterate": true
     },
     {
       "id": "bandwidth",
@@ -42,7 +61,8 @@
       "min": 32,
       "max": 1000000,
       "step": 32,
-      "condition": "mode=='bandwidth' || mode=='combination'"
+      "condition": "mode=='bandwidth' || mode=='combination'",
+      "canIterate": true
     },
     {
       "id": "latency",
@@ -54,7 +74,8 @@
       "min": 1,
       "max": 5000,
       "step": 1,
-      "condition": "mode=='latency' || mode=='combination'"
+      "condition": "mode=='latency' || mode=='combination'",
+      "canIterate": true
     },
     {
       "id": "packet_loss",
@@ -66,7 +87,8 @@
       "min": 0.1,
       "max": 100,
       "step": 0.1,
-      "condition": "mode=='packet_loss' || mode=='combination'"
+      "condition": "mode=='packet_loss' || mode=='combination'",
+      "canIterate": true
     },
     {
       "id": "jitter",
@@ -78,7 +100,8 @@
       "min": 1,
       "max": 1000,
       "step": 1,
-      "condition": "mode=='jitter' || mode=='combination'"
+      "condition": "mode=='jitter' || mode=='combination'",
+      "canIterate": true
     },
     {
       "id": "duration",
@@ -90,7 +113,40 @@
       "min": 0,
       "max": 3600,
       "step": 1,
-      "condition": "mode!='reset'"
+      "condition": "mode!='reset'",
+      "canIterate": true
+    },
+    {
+      "id": "continueToIterate",
+      "name": "Continue to iterate?",
+      "description": "Enable repeated execution of this plugin with the same parameters",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "canIterate": true
+    },
+    {
+      "id": "iterationDelay",
+      "name": "Iteration Delay (ms)",
+      "description": "Delay between iterations in milliseconds",
+      "type": "number",
+      "required": false,
+      "default": 5000,
+      "min": 1000,
+      "max": 60000,
+      "step": 1000,
+      "canIterate": true
+    },
+    {
+      "id": "maxIterations",
+      "name": "Max Iterations",
+      "description": "Maximum number of iterations (0 = unlimited)",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "canIterate": true
     }
   ]
 }
