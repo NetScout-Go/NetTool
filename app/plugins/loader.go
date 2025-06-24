@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/NetScout-Go/NetTool/app/plugins/types"
@@ -163,6 +164,12 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 
 		// Register with the registry
 		registry.RegisterPluginFunc(pluginID, p.pluginExecuteFuncs[pluginID])
+
+		// Also register the plugin execution functions from the helper
+		if helperFunc, err := LoadPluginFunc(pluginDir, pluginID); err == nil {
+			// Override with the helper function if available
+			registry.RegisterPluginFunc(pluginID, helperFunc)
+		}
 	}
 
 	return p.plugins, nil
@@ -205,13 +212,23 @@ func (p *DynamicPlugin) GetDefinition() types.PluginDefinition {
 		return *p.definition
 	}
 
-	// Run the plugin.go file with --definition flag
+	// First try to read plugin.json directly (for plugins without main function)
+	pluginJsonPath := filepath.Join(p.pluginDir, "plugin.json")
+	if jsonData, err := os.ReadFile(pluginJsonPath); err == nil {
+		var definition types.PluginDefinition
+		if err := json.Unmarshal(jsonData, &definition); err == nil {
+			p.definition = &definition
+			return definition
+		}
+	}
+
+	// If plugin.json read failed, try running plugin.go with --definition flag
 	cmdStr := fmt.Sprintf("cd %s && go run plugin.go --definition", p.pluginDir)
 	cmd := exec.Command("bash", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error getting plugin definition for %s: %v\n", p.pluginID, err)
-		// Return a default definition with error information
+		// As a last resort, return a default definition with error information
 		return types.PluginDefinition{
 			ID:          p.pluginID,
 			Name:        p.pluginID,
@@ -242,6 +259,25 @@ func (p *DynamicPlugin) GetDefinition() types.PluginDefinition {
 
 // Execute runs the plugin with the given parameters
 func (p *DynamicPlugin) Execute(params map[string]interface{}) (interface{}, error) {
+	// Check if the plugin has a main function by looking for package main
+	pluginGoPath := filepath.Join(p.pluginDir, "plugin.go")
+	pluginContent, err := os.ReadFile(pluginGoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read plugin.go: %v", err)
+	}
+
+	// Check if plugin uses package main
+	if strings.Contains(string(pluginContent), "package main") {
+		// Plugin has main function, run it with command line arguments
+		return p.executeWithMain(params)
+	} else {
+		// Plugin doesn't have main function, try to use it as a library
+		return p.executeWithLibrary(params)
+	}
+}
+
+// executeWithMain runs plugins that have a main function
+func (p *DynamicPlugin) executeWithMain(params map[string]interface{}) (interface{}, error) {
 	// Convert parameters to JSON
 	paramsJSON, err := json.Marshal(params)
 	if err != nil {
@@ -267,6 +303,19 @@ func (p *DynamicPlugin) Execute(params map[string]interface{}) (interface{}, err
 	}
 
 	return result, nil
+}
+
+// executeWithLibrary runs plugins that don't have a main function
+func (p *DynamicPlugin) executeWithLibrary(params map[string]interface{}) (interface{}, error) {
+	// For plugins without main function, we need to call them through the registry
+	// or fall back to the plugin helper functions
+	registry := GetRegistry()
+	executeFunc, err := registry.GetPluginFunc(p.pluginID)
+	if err != nil {
+		return nil, fmt.Errorf("plugin %s not found in registry and cannot be executed directly: %v", p.pluginID, err)
+	}
+
+	return executeFunc(params)
 }
 
 // IsIterable checks if the plugin implements the IterablePlugin interface

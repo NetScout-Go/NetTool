@@ -33,6 +33,7 @@ type Parameter struct {
 	Min         *float64      `json:"min,omitempty"`     // For number/range type
 	Max         *float64      `json:"max,omitempty"`     // For number/range type
 	Step        *float64      `json:"step,omitempty"`    // For number/range type
+	CanIterate  bool          `json:"canIterate,omitempty"` // Whether this parameter supports iteration
 }
 
 // Option defines an option for a select parameter
@@ -46,6 +47,9 @@ type Plugin struct {
 	ID          string                                            `json:"id"`
 	Name        string                                            `json:"name"`
 	Description string                                            `json:"description"`
+	Version     string                                            `json:"version"`
+	Author      string                                            `json:"author"`
+	License     string                                            `json:"license"`
 	Icon        string                                            `json:"icon"`
 	Parameters  []Parameter                                       `json:"parameters"`
 	Execute     func(map[string]interface{}) (interface{}, error) `json:"-"`
@@ -179,6 +183,9 @@ func (pm *PluginManager) RefreshPlugins() error {
 			ID:          definition.ID,
 			Name:        definition.Name,
 			Description: definition.Description,
+			Version:     definition.Version,
+			Author:      definition.Author,
+			License:     definition.License,
 			Icon:        definition.Icon,
 			Parameters:  convertParameters(definition.Parameters),
 			Execute:     executeFunc,
@@ -200,6 +207,9 @@ func (pm *PluginManager) RefreshPlugins() error {
 		ID:          "network_info",
 		Name:        "Network Information",
 		Description: "Displays detailed information about the device's network connections",
+		Version:     "1.0.0",
+		Author:      "NetTool Team",
+		License:     "MIT",
 		Icon:        "network",
 		Parameters:  []Parameter{}, // No parameters needed
 		Execute: func(params map[string]interface{}) (interface{}, error) {
@@ -226,6 +236,7 @@ func convertParameters(pluginParams []types.PluginParam) []Parameter {
 			Min:         param.Min,
 			Max:         param.Max,
 			Step:        param.Step,
+			CanIterate:  param.CanIterate,
 		}
 	}
 	return parameters
