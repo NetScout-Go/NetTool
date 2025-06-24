@@ -10,3 +10,4 @@ plugin.json.tmp
 *backup*
 *.new
 config.json
+app/plugins/plugins/*
