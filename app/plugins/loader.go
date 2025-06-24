@@ -166,9 +166,12 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 		registry.RegisterPluginFunc(pluginID, p.pluginExecuteFuncs[pluginID])
 
 		// Also register the plugin execution functions from the helper
-		if helperFunc, err := LoadPluginFunc(pluginDir, pluginID); err == nil {
-			// Override with the helper function if available
-			registry.RegisterPluginFunc(pluginID, helperFunc)
+		// Skip override for plugins that have proper standalone implementations
+		if pluginID != "dns_lookup" {
+			if helperFunc, err := LoadPluginFunc(pluginDir, pluginID); err == nil {
+				// Override with the helper function if available
+				registry.RegisterPluginFunc(pluginID, helperFunc)
+			}
 		}
 	}
 

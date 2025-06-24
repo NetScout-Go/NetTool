@@ -2,10 +2,10 @@ package plugins
 
 import (
 	"archive/zip"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -66,16 +66,47 @@ type PluginSource struct {
 
 // PluginListItem represents a plugin in the store listing
 type PluginListItem struct {
-	ID          string `json:"id"`
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Version      string                 `json:"version"`
+	Author       string                 `json:"author"`
+	License      string                 `json:"license"`
+	Category     string                 `json:"category"`
+	Repository   string                 `json:"repository"`
+	Icon         string                 `json:"icon"`
+	Installed    bool                   `json:"installed"`
+	DataJSON     map[string]interface{} `json:"dataJson,omitempty"`
+	Screenshots  []string               `json:"screenshots,omitempty"`
+	Requirements []string               `json:"requirements,omitempty"`
+	Tags         []string               `json:"tags,omitempty"`
+}
+
+// GitHubRepository represents a GitHub repository from the API
+type GitHubRepository struct {
 	Name        string `json:"name"`
+	FullName    string `json:"full_name"`
 	Description string `json:"description"`
-	Version     string `json:"version"`
-	Author      string `json:"author"`
-	License     string `json:"license"`
-	Category    string `json:"category"`
-	Repository  string `json:"repository"`
-	Icon        string `json:"icon"`
-	Installed   bool   `json:"installed"`
+	HTMLURL     string `json:"html_url"`
+	CloneURL    string `json:"clone_url"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+// PluginDataJSON represents the data.json structure in plugin repositories
+type PluginDataJSON struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Version      string   `json:"version"`
+	Author       string   `json:"author"`
+	License      string   `json:"license"`
+	Category     string   `json:"category"`
+	Icon         string   `json:"icon"`
+	Screenshots  []string `json:"screenshots"`
+	Requirements []string `json:"requirements"`
+	Tags         []string `json:"tags"`
+	MinVersion   string   `json:"minVersion"`
+	Homepage     string   `json:"homepage"`
 }
 
 // PluginCatalog represents the catalog of available plugins
@@ -872,11 +903,11 @@ func (pi *PluginInstaller) ListAvailablePlugins() ([]PluginListItem, error) {
 		return nil, fmt.Errorf("failed to list installed plugins: %v", err)
 	}
 
-	// Build catalog from individual plugin.json files
-	var pluginItems []PluginListItem
-
 	// Create map of installed plugins for quick lookup
 	installedMap := make(map[string]bool)
+	var pluginItems []PluginListItem
+
+	// Add installed plugins to the list
 	for _, plugin := range installedPlugins {
 		installedMap[plugin.ID] = true
 
@@ -903,11 +934,228 @@ func (pi *PluginInstaller) ListAvailablePlugins() ([]PluginListItem, error) {
 		pluginItems = append(pluginItems, item)
 	}
 
-	// Optionally, we could fetch additional plugins from GitHub here
-	// This would involve using the GitHub API to query organizations for repositories
-	// matching the plugin naming pattern
+	// Fetch plugins from GitHub sources
+	for _, source := range pi.pluginSources {
+		githubPlugins, err := pi.fetchPluginsFromGitHub(source)
+		if err != nil {
+			log.Printf("Error fetching plugins from %s: %v", source.Organization, err)
+			continue
+		}
+
+		// Add GitHub plugins to the list
+		for _, plugin := range githubPlugins {
+			// Skip if already installed
+			if _, exists := installedMap[plugin.ID]; exists {
+				continue
+			}
+
+			pluginItems = append(pluginItems, plugin)
+		}
+	}
 
 	return pluginItems, nil
+}
+
+// fetchPluginsFromGitHub fetches plugins from a GitHub organization that match the Plugin_ pattern
+func (pi *PluginInstaller) fetchPluginsFromGitHub(source PluginSource) ([]PluginListItem, error) {
+	// GitHub API URL for organization repositories
+	url := fmt.Sprintf("https://api.github.com/orgs/%s/repos?per_page=100", source.Organization)
+
+	// Create a new request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add authentication if available
+	token, err := pi.config.GetTokenForOrganization(source.Organization)
+	if err == nil && token != "" {
+		req.Header.Add("Authorization", "token "+token)
+	}
+
+	// Add User-Agent header required by GitHub API
+	req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
+	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
+	// Make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch repositories: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusForbidden {
+			rateLimitRemaining := resp.Header.Get("X-RateLimit-Remaining")
+			if rateLimitRemaining == "0" {
+				resetTimeStr := resp.Header.Get("X-RateLimit-Reset")
+				return nil, fmt.Errorf("GitHub API rate limit exceeded. Add a personal access token in config.json to increase the limit. Resets at %s", resetTimeStr)
+			}
+		}
+		return nil, fmt.Errorf("GitHub API returned status code %d", resp.StatusCode)
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+
+	// Parse the JSON response
+	var repos []GitHubRepository
+	if err := json.Unmarshal(body, &repos); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	var plugins []PluginListItem
+
+	// Filter repositories to only include those with Plugin_ prefix
+	for _, repo := range repos {
+		if !strings.HasPrefix(repo.Name, "Plugin_") {
+			continue
+		}
+
+		// Fetch data.json from the repository
+		pluginData, err := pi.fetchPluginDataJSON(source.Organization, repo.Name)
+		if err != nil {
+			log.Printf("Error fetching data.json for %s/%s: %v", source.Organization, repo.Name, err)
+			// Create a basic plugin item without data.json
+			pluginID := strings.TrimPrefix(repo.Name, "Plugin_")
+			plugins = append(plugins, PluginListItem{
+				ID:          pluginID,
+				Name:        repo.Name,
+				Description: repo.Description,
+				Version:     "unknown",
+				Author:      source.Organization,
+				License:     "unknown",
+				Category:    "other",
+				Repository:  repo.HTMLURL,
+				Icon:        "plugin",
+				Installed:   false,
+			})
+			continue
+		}
+
+		// Create plugin item from data.json
+		pluginID := pluginData.ID
+		if pluginID == "" {
+			pluginID = strings.TrimPrefix(repo.Name, "Plugin_")
+		}
+
+		plugin := PluginListItem{
+			ID:           pluginID,
+			Name:         pluginData.Name,
+			Description:  pluginData.Description,
+			Version:      pluginData.Version,
+			Author:       pluginData.Author,
+			License:      pluginData.License,
+			Category:     pluginData.Category,
+			Repository:   repo.HTMLURL,
+			Icon:         pluginData.Icon,
+			Installed:    false,
+			Screenshots:  pluginData.Screenshots,
+			Requirements: pluginData.Requirements,
+			Tags:         pluginData.Tags,
+		}
+
+		// Use repository description as fallback
+		if plugin.Description == "" {
+			plugin.Description = repo.Description
+		}
+
+		// Set defaults
+		if plugin.Author == "" {
+			plugin.Author = source.Organization
+		}
+		if plugin.License == "" {
+			plugin.License = "unknown"
+		}
+		if plugin.Category == "" {
+			plugin.Category = "other"
+		}
+		if plugin.Icon == "" {
+			plugin.Icon = "plugin"
+		}
+
+		plugins = append(plugins, plugin)
+	}
+
+	return plugins, nil
+}
+
+// fetchPluginDataJSON fetches the data.json file from a GitHub repository
+func (pi *PluginInstaller) fetchPluginDataJSON(org, repo string) (*PluginDataJSON, error) {
+	// GitHub API URL for file contents
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/data.json", org, repo)
+
+	// Create a new request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add authentication if available
+	token, err := pi.config.GetTokenForOrganization(org)
+	if err == nil && token != "" {
+		req.Header.Add("Authorization", "token "+token)
+	}
+
+	// Add User-Agent header required by GitHub API
+	req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
+	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
+	// Make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch data.json: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("data.json not found in repository")
+		}
+		return nil, fmt.Errorf("GitHub API returned status code %d", resp.StatusCode)
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+
+	// Parse the GitHub API response
+	var fileResponse struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	if err := json.Unmarshal(body, &fileResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	// Decode the base64 content
+	if fileResponse.Encoding != "base64" {
+		return nil, fmt.Errorf("unsupported encoding: %s", fileResponse.Encoding)
+	}
+
+	// GitHub API returns content with newlines, so we need to clean it
+	cleanContent := strings.ReplaceAll(fileResponse.Content, "\n", "")
+
+	// Decode base64
+	decodedContent, err := base64.StdEncoding.DecodeString(cleanContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 content: %v", err)
+	}
+
+	// Parse the data.json content
+	var pluginData PluginDataJSON
+	if err := json.Unmarshal(decodedContent, &pluginData); err != nil {
+		return nil, fmt.Errorf("failed to parse data.json: %v", err)
+	}
+
+	return &pluginData, nil
 }
 
 // RefreshPluginCatalog fetches the latest plugins from GitHub and updates individual plugin.json files
@@ -955,7 +1203,7 @@ func (pi *PluginInstaller) RefreshPluginCatalog() error {
 				}
 			}
 
-			body, _ := ioutil.ReadAll(resp.Body)
+			body, _ := io.ReadAll(resp.Body)
 			log.Printf("GitHub API error (%d) for %s: %s", resp.StatusCode, source.Organization, string(body))
 			continue
 		}
@@ -993,7 +1241,7 @@ func (pi *PluginInstaller) RefreshPluginCatalog() error {
 			jsonPath := filepath.Join(pluginDir, "plugin.json")
 			var pluginData map[string]interface{}
 
-			existingData, err := ioutil.ReadFile(jsonPath)
+			existingData, err := os.ReadFile(jsonPath)
 			if err == nil {
 				// If plugin.json exists, unmarshal it
 				if err := json.Unmarshal(existingData, &pluginData); err != nil {
@@ -1053,7 +1301,7 @@ func (pi *PluginInstaller) RefreshPluginCatalog() error {
 				continue
 			}
 
-			if err := ioutil.WriteFile(jsonPath, updatedData, 0644); err != nil {
+			if err := os.WriteFile(jsonPath, updatedData, 0644); err != nil {
 				log.Printf("Error writing plugin.json for %s: %v", pluginID, err)
 				continue
 			}
@@ -1091,7 +1339,7 @@ func (pi *PluginInstaller) readDependencies(pluginDir string) ([]Dependency, err
 	}
 
 	// Read DEPENDENCIES.md
-	data, err := ioutil.ReadFile(depPath)
+	data, err := os.ReadFile(depPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read DEPENDENCIES.md: %v", err)
 	}
@@ -1326,7 +1574,7 @@ func (pi *PluginInstaller) copyDir(src, dst string) error {
 	}
 
 	// Read source directory
-	entries, err := ioutil.ReadDir(src)
+	entries, err := os.ReadDir(src)
 	if err != nil {
 		return err
 	}
@@ -1365,7 +1613,11 @@ func (pi *PluginInstaller) copyDir(src, dst string) error {
 			}
 
 			// Set file mode
-			if err := os.Chmod(dstPath, entry.Mode()); err != nil {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			if err := os.Chmod(dstPath, info.Mode()); err != nil {
 				return err
 			}
 		}
@@ -1443,4 +1695,74 @@ func (pi *PluginInstaller) InstallPluginFromRepository(repository string) error 
 	}
 
 	return nil
+}
+
+// BulkInstallResult represents the result of a bulk installation
+type BulkInstallResult struct {
+	PluginID string         `json:"pluginId"`
+	Plugin   PluginMetadata `json:"plugin,omitempty"`
+	Success  bool           `json:"success"`
+	Error    string         `json:"error,omitempty"`
+}
+
+// BulkInstallResponse represents the response from bulk installation
+type BulkInstallResponse struct {
+	Results        []BulkInstallResult `json:"results"`
+	TotalPlugins   int                 `json:"totalPlugins"`
+	SuccessCount   int                 `json:"successCount"`
+	FailureCount   int                 `json:"failureCount"`
+	OverallSuccess bool                `json:"overallSuccess"`
+}
+
+// BulkInstallPlugins installs multiple plugins from a list of repositories
+func (pi *PluginInstaller) BulkInstallPlugins(repositories []string) BulkInstallResponse {
+	results := make([]BulkInstallResult, 0, len(repositories))
+	successCount := 0
+	failureCount := 0
+
+	for _, repo := range repositories {
+		result := BulkInstallResult{
+			PluginID: extractPluginIDFromRepo(repo),
+		}
+
+		plugin, err := pi.InstallPlugin(repo)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			failureCount++
+		} else {
+			result.Success = true
+			result.Plugin = plugin
+			successCount++
+		}
+
+		results = append(results, result)
+	}
+
+	return BulkInstallResponse{
+		Results:        results,
+		TotalPlugins:   len(repositories),
+		SuccessCount:   successCount,
+		FailureCount:   failureCount,
+		OverallSuccess: failureCount == 0,
+	}
+}
+
+// extractPluginIDFromRepo extracts plugin ID from repository URL
+func extractPluginIDFromRepo(repo string) string {
+	// Extract plugin name from repository URL
+	parts := strings.Split(repo, "/")
+	if len(parts) > 0 {
+		pluginName := parts[len(parts)-1]
+		// Remove .git suffix if present
+		if strings.HasSuffix(pluginName, ".git") {
+			pluginName = pluginName[:len(pluginName)-4]
+		}
+		// Remove Plugin_ prefix if present to get clean ID
+		if strings.HasPrefix(pluginName, "Plugin_") {
+			pluginName = pluginName[7:]
+		}
+		return strings.ToLower(pluginName)
+	}
+	return repo
 }

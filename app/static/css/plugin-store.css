@@ -12,6 +12,20 @@
 .plugin-card .card-header {
     padding: 0.75rem;
     font-weight: 500;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+}
+
+.plugin-card .card-body {
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+}
+
+.plugin-card .card-text {
+    flex-grow: 1;
+    margin-bottom: 1rem;
 }
 
 .plugin-card .card-footer {
@@ -100,4 +114,82 @@
 .store-empty-state p {
     margin-bottom: 1.5rem;
     color: #6c757d;
+}
+
+/* Enhanced plugin card styles */
+.plugin-tags {
+    margin-top: 0.5rem;
+}
+
+.plugin-tags .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Requirements styling */
+.plugin-requirements {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+/* Screenshot modal styling */
+.plugin-screenshots img {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.plugin-screenshots img:hover {
+    transform: scale(1.05);
+}
+
+/* Plugin details modal enhancements */
+.plugin-details .card {
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.plugin-details .card-header h6 {
+    color: #495057;
+    font-weight: 600;
+}
+
+/* Badge colors for different categories */
+.badge.bg-security {
+    background-color: #dc3545 !important;
+}
+
+.badge.bg-connectivity {
+    background-color: #6f42c1 !important;
+}
+
+.badge.bg-monitoring {
+    background-color: #17a2b8 !important;
+}
+
+.badge.bg-other {
+    background-color: #6c757d !important;
+}
+
+/* Loading states */
+.plugin-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.plugin-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }

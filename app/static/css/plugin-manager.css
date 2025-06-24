@@ -197,3 +197,32 @@ body.dark-mode .form-text {
 .repo-stats .stat-item i {
     margin-right: 5px;
 }
+
+/* Plugin selection checkboxes */
+.plugin-card .form-check {
+    z-index: 10;
+}
+
+.plugin-card .form-check-input {
+    transform: scale(1.2);
+}
+
+.plugin-card.selected {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Bulk actions */
+#bulkActionControls .alert {
+    margin-bottom: 0;
+}
+
+/* Bulk install modal */
+#bulkInstallModal .progress {
+    height: 1.5rem;
+}
+
+#bulkInstallModal .table-responsive {
+    max-height: 300px;
+    overflow-y: auto;
+}

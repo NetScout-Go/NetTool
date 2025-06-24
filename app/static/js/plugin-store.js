@@ -4,6 +4,9 @@
 
 // Extend the PluginManagerUI with store functionality
 Object.assign(PluginManagerUI, {
+    // Store selected plugins for bulk operations
+    selectedPlugins: new Set(),
+    
     // Initialize store functionality
     initStore: function() {
         // Load available plugins when the store tab is shown
@@ -57,6 +60,28 @@ Object.assign(PluginManagerUI, {
                 if (pluginId) {
                     this.installPluginFromStore(pluginId);
                 }
+            });
+        }
+        
+        // Bulk selection controls
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                this.selectAllPlugins();
+            });
+        }
+        
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', () => {
+                this.deselectAllPlugins();
+            });
+        }
+        
+        const bulkInstallBtn = document.getElementById('bulkInstallBtn');
+        if (bulkInstallBtn) {
+            bulkInstallBtn.addEventListener('click', () => {
+                this.bulkInstallPlugins();
             });
         }
     },
@@ -187,7 +212,10 @@ Object.assign(PluginManagerUI, {
             const matchesSearch = 
                 plugin.name.toLowerCase().includes(searchTerm) || 
                 plugin.description.toLowerCase().includes(searchTerm) ||
-                plugin.id.toLowerCase().includes(searchTerm);
+                plugin.id.toLowerCase().includes(searchTerm) ||
+                plugin.author.toLowerCase().includes(searchTerm) ||
+                (plugin.tags && plugin.tags.some(tag => tag.toLowerCase().includes(searchTerm))) ||
+                (plugin.requirements && plugin.requirements.some(req => req.toLowerCase().includes(searchTerm)));
             
             // Filter by category
             const matchesCategory = !category || plugin.category === category;
@@ -231,7 +259,18 @@ Object.assign(PluginManagerUI, {
                     this.installPluginFromStore(pluginId);
                 });
             }
+            
+            // Selection checkbox
+            const checkbox = card.querySelector('.plugin-select-checkbox');
+            if (checkbox) {
+                checkbox.addEventListener('change', () => {
+                    this.handlePluginSelection(checkbox);
+                });
+            }
         });
+        
+        // Update bulk action controls visibility
+        this.updateBulkControls();
     },
     
     // Create a plugin card for the store
@@ -243,24 +282,47 @@ Object.assign(PluginManagerUI, {
             : `<button class="btn btn-sm btn-primary plugin-install-btn">
                 <i class="bi bi-download me-1"></i>Install
                </button>`;
+
+        // Add selection checkbox for non-installed plugins
+        const selectionCheckbox = !plugin.installed 
+            ? `<div class="form-check position-absolute top-0 start-0 m-2">
+                    <input class="form-check-input plugin-select-checkbox" type="checkbox" value="${plugin.id}" data-repository="${plugin.repository}">
+               </div>`
+            : '';
+
+        // Create tags display
+        const tagsDisplay = plugin.tags && plugin.tags.length > 0 
+            ? plugin.tags.slice(0, 3).map(tag => `<span class="badge bg-light text-dark me-1">${tag}</span>`).join('')
+            : '';
+
+        // Truncate description if too long
+        const description = plugin.description.length > 120 
+            ? plugin.description.substring(0, 120) + '...'
+            : plugin.description;
         
         return `
             <div class="col">
-                <div class="card h-100 plugin-card" data-plugin-id="${plugin.id}">
+                <div class="card h-100 plugin-card position-relative" data-plugin-id="${plugin.id}">
+                    ${selectionCheckbox}
                     <div class="card-header bg-light d-flex align-items-center">
                         <i class="bi bi-${plugin.icon || 'plugin'} me-2 fs-5"></i>
-                        <div>
+                        <div class="flex-grow-1">
                             <h5 class="card-title mb-0">${plugin.name}</h5>
                             <div class="small text-muted">${plugin.id}</div>
                         </div>
                     </div>
                     <div class="card-body">
-                        <p class="card-text">${plugin.description}</p>
-                        <div class="plugin-meta">
+                        <p class="card-text">${description}</p>
+                        <div class="plugin-meta mb-2">
                             <span class="badge bg-primary me-1">${plugin.category || 'other'}</span>
                             <span class="badge bg-secondary me-1">v${plugin.version}</span>
-                            <span class="badge bg-light text-dark">${plugin.author}</span>
+                            <span class="badge bg-info text-white">${plugin.author}</span>
                         </div>
+                        ${tagsDisplay ? `<div class="plugin-tags">${tagsDisplay}</div>` : ''}
+                        ${plugin.requirements && plugin.requirements.length > 0 ? 
+                            `<div class="small text-muted mt-2">
+                                <i class="bi bi-info-circle me-1"></i>Requirements: ${plugin.requirements.join(', ')}
+                            </div>` : ''}
                     </div>
                     <div class="card-footer d-flex justify-content-between align-items-center">
                         <button class="btn btn-sm btn-outline-secondary plugin-details-btn">
@@ -325,12 +387,67 @@ Object.assign(PluginManagerUI, {
                     <div class="row">
                         <div class="col-md-4 fw-bold">Repository:</div>
                         <div class="col-md-8">
-                            <a href="${plugin.repository}" target="_blank">${plugin.repository}</a>
+                            <a href="${plugin.repository}" target="_blank" rel="noopener noreferrer">
+                                <i class="bi bi-github me-1"></i>${plugin.repository}
+                            </a>
                         </div>
                     </div>
                 </div>
             </div>
         `;
+
+        // Tags section
+        if (plugin.tags && plugin.tags.length > 0) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-tags me-2"></i>Tags</h6>
+                    </div>
+                    <div class="card-body">
+                        ${plugin.tags.map(tag => `<span class="badge bg-secondary me-1 mb-1">${tag}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Requirements section
+        if (plugin.requirements && plugin.requirements.length > 0) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Requirements</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            ${plugin.requirements.map(req => `<li><i class="bi bi-check-circle-fill text-success me-2"></i>${req}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Screenshots section
+        if (plugin.screenshots && plugin.screenshots.length > 0) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-images me-2"></i>Screenshots</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            ${plugin.screenshots.map((screenshot, index) => `
+                                <div class="col-md-6 mb-3">
+                                    <img src="${screenshot}" class="img-fluid rounded shadow-sm" 
+                                         alt="Screenshot ${index + 1}" 
+                                         style="cursor: pointer;"
+                                         onclick="window.open('${screenshot}', '_blank')">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         
         html += '</div>';
         
@@ -352,7 +469,9 @@ Object.assign(PluginManagerUI, {
         
         // Set repository URL for README button
         const readmeBtn = document.getElementById('viewPluginReadme');
-        readmeBtn.href = `${plugin.repository}/blob/main/README.md`;
+        if (readmeBtn) {
+            readmeBtn.href = `${plugin.repository}/blob/main/README.md`;
+        }
         
         // Show the modal
         const modal = new bootstrap.Modal(document.getElementById('pluginDetailsModal'));
@@ -408,6 +527,215 @@ Object.assign(PluginManagerUI, {
                     });
             }
         );
+    },
+    
+    // Handle plugin selection checkbox
+    handlePluginSelection: function(checkbox) {
+        const pluginId = checkbox.value;
+        const repository = checkbox.getAttribute('data-repository');
+        
+        if (checkbox.checked) {
+            this.selectedPlugins.add({id: pluginId, repository: repository});
+        } else {
+            // Remove from selected plugins
+            this.selectedPlugins.forEach(plugin => {
+                if (plugin.id === pluginId) {
+                    this.selectedPlugins.delete(plugin);
+                }
+            });
+        }
+        
+        this.updateBulkControls();
+    },
+    
+    // Update bulk controls visibility and count
+    updateBulkControls: function() {
+        const bulkControls = document.getElementById('bulkActionControls');
+        const selectedCount = document.getElementById('selectedCount');
+        
+        if (this.selectedPlugins.size > 0) {
+            bulkControls.style.display = 'block';
+            selectedCount.textContent = this.selectedPlugins.size;
+        } else {
+            bulkControls.style.display = 'none';
+        }
+    },
+    
+    // Select all available (non-installed) plugins
+    selectAllPlugins: function() {
+        const checkboxes = document.querySelectorAll('.plugin-select-checkbox');
+        checkboxes.forEach(checkbox => {
+            if (!checkbox.checked) {
+                checkbox.checked = true;
+                this.handlePluginSelection(checkbox);
+            }
+        });
+    },
+    
+    // Deselect all plugins
+    deselectAllPlugins: function() {
+        const checkboxes = document.querySelectorAll('.plugin-select-checkbox');
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                checkbox.checked = false;
+                this.handlePluginSelection(checkbox);
+            }
+        });
+    },
+    
+    // Bulk install selected plugins
+    bulkInstallPlugins: function() {
+        if (this.selectedPlugins.size === 0) {
+            this.showToast('Warning', 'No plugins selected for installation', 'warning');
+            return;
+        }
+        
+        const selectedArray = Array.from(this.selectedPlugins);
+        const repositories = selectedArray.map(plugin => plugin.repository);
+        
+        // Show confirmation
+        this.confirmAction(
+            `Are you sure you want to install ${this.selectedPlugins.size} selected plugins?`,
+            () => {
+                this.showBulkInstallModal(selectedArray);
+                this.performBulkInstall(repositories);
+            }
+        );
+    },
+    
+    // Show bulk install progress modal
+    showBulkInstallModal: function(plugins) {
+        // Initialize modal
+        const modal = new bootstrap.Modal(document.getElementById('bulkInstallModal'));
+        
+        // Set up progress tracking
+        const overallProgress = document.getElementById('overallProgress');
+        const overallProgressBar = document.getElementById('overallProgressBar');
+        const currentlyInstalling = document.getElementById('currentlyInstalling');
+        const installDetailsTable = document.getElementById('installDetailsTable');
+        
+        // Initialize progress
+        overallProgress.textContent = `0 / ${plugins.length}`;
+        overallProgressBar.style.width = '0%';
+        currentlyInstalling.textContent = 'Preparing installation...';
+        
+        // Initialize details table
+        installDetailsTable.innerHTML = plugins.map(plugin => `
+            <tr id="install-row-${plugin.id}">
+                <td>${plugin.id}</td>
+                <td><span class="badge bg-secondary">Waiting</span></td>
+                <td><span id="install-details-${plugin.id}">-</span></td>
+            </tr>
+        `).join('');
+        
+        // Show modal
+        modal.show();
+        
+        // Store modal reference
+        this.bulkInstallModal = modal;
+    },
+    
+    // Perform bulk installation
+    performBulkInstall: function(repositories) {
+        const cancelBtn = document.getElementById('cancelInstallBtn');
+        const closeBtn = document.getElementById('closeInstallBtn');
+        let installationCancelled = false;
+        
+        // Handle cancellation
+        cancelBtn.addEventListener('click', () => {
+            installationCancelled = true;
+            this.showToast('Info', 'Installation cancelled', 'info');
+            this.bulkInstallModal.hide();
+        });
+        
+        // Call bulk install API
+        fetch('/api/plugins/manage/bulk-install', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                repositories: repositories
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to start bulk installation');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (installationCancelled) return;
+            
+            // Update progress based on results
+            this.updateBulkInstallProgress(data);
+            
+            // Switch to close button
+            cancelBtn.classList.add('d-none');
+            closeBtn.classList.remove('d-none');
+            
+            // Show completion message
+            const overallSuccess = data.overallSuccess;
+            const message = overallSuccess 
+                ? `Successfully installed ${data.successCount} plugins!`
+                : `Installation completed with ${data.failureCount} failures. ${data.successCount} plugins installed successfully.`;
+            
+            this.showToast(
+                overallSuccess ? 'Success' : 'Warning', 
+                message, 
+                overallSuccess ? 'success' : 'warning'
+            );
+            
+            // Clear selections and refresh
+            this.deselectAllPlugins();
+            this.loadAvailablePlugins();
+            this.loadInstalledPlugins();
+        })
+        .catch(error => {
+            if (installationCancelled) return;
+            
+            console.error('Error during bulk installation:', error);
+            this.showToast('Error', 'Failed to install plugins: ' + error.message, 'error');
+            
+            // Switch to close button
+            cancelBtn.classList.add('d-none');
+            closeBtn.classList.remove('d-none');
+        });
+    },
+    
+    // Update bulk install progress display
+    updateBulkInstallProgress: function(data) {
+        const overallProgress = document.getElementById('overallProgress');
+        const overallProgressBar = document.getElementById('overallProgressBar');
+        const currentlyInstalling = document.getElementById('currentlyInstalling');
+        
+        // Update overall progress
+        const completedCount = data.successCount + data.failureCount;
+        const progressPercent = (completedCount / data.totalPlugins) * 100;
+        
+        overallProgress.textContent = `${completedCount} / ${data.totalPlugins}`;
+        overallProgressBar.style.width = `${progressPercent}%`;
+        overallProgressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+        
+        if (completedCount === data.totalPlugins) {
+            currentlyInstalling.textContent = 'Installation completed';
+            overallProgressBar.classList.add('bg-success');
+        }
+        
+        // Update individual plugin status
+        data.results.forEach(result => {
+            const row = document.getElementById(`install-row-${result.pluginId}`);
+            const statusCell = row.querySelector('td:nth-child(2)');
+            const detailsCell = document.getElementById(`install-details-${result.pluginId}`);
+            
+            if (result.success) {
+                statusCell.innerHTML = '<span class="badge bg-success">Installed</span>';
+                detailsCell.textContent = 'Successfully installed';
+            } else {
+                statusCell.innerHTML = '<span class="badge bg-danger">Failed</span>';
+                detailsCell.textContent = result.error || 'Installation failed';
+            }
+        });
     }
 });
 

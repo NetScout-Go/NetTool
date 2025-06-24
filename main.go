@@ -247,6 +247,26 @@ func main() {
 				c.JSON(http.StatusOK, gin.H{"message": "Plugin installed successfully"})
 			})
 
+			// Bulk install plugins from repositories
+			pluginManage.POST("/bulk-install", func(c *gin.Context) {
+				var request struct {
+					Repositories []string `json:"repositories"`
+				}
+
+				if err := c.BindJSON(&request); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				if len(request.Repositories) == 0 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "No repositories provided"})
+					return
+				}
+
+				result := pluginInstaller.BulkInstallPlugins(request.Repositories)
+				c.JSON(http.StatusOK, result)
+			})
+
 			// Upload plugin (ZIP file)
 			pluginManage.POST("/upload", func(c *gin.Context) {
 				file, _, err := c.Request.FormFile("plugin")

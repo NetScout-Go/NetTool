@@ -110,7 +110,7 @@ func (pm *PluginManager) RunPlugin(id string, params map[string]interface{}) (in
 	for _, param := range plugin.Parameters {
 		if param.Required {
 			if _, ok := params[param.ID]; !ok {
-				return nil, errors.New("missing required parameter: " + param.Name)
+				return nil, errors.New("missing required parameter: " + param.ID)
 			}
 		}
 	}
