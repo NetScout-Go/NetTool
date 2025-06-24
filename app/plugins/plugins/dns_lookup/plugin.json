@@ -1,91 +1,58 @@
 {
-  "id": "dns_lookup",
-  "name": "DNS Lookup",
+  "author": "NetScout-Go",
   "description": "Performs DNS lookups for a domain",
   "icon": "dns",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "dns_lookup",
   "license": "MIT",
+  "name": "DNS Lookup",
   "parameters": [
     {
+      "default": "example.com",
+      "description": "The domain name to lookup",
       "id": "domain",
       "name": "Domain",
-      "description": "The domain name to lookup",
-      "type": "string",
       "required": true,
-      "default": "example.com",
-      "canIterate": true
+      "type": "string"
     },
     {
+      "default": "A",
+      "description": "Type of DNS record to lookup",
       "id": "recordType",
       "name": "Record Type",
-      "description": "Type of DNS record to lookup",
-      "type": "select",
-      "required": false,
-      "default": "A",
       "options": [
         {
-          "value": "A",
-          "label": "A (IPv4 Address)"
+          "label": "A (IPv4 Address)",
+          "value": "A"
         },
         {
-          "value": "AAAA",
-          "label": "AAAA (IPv6 Address)"
+          "label": "AAAA (IPv6 Address)",
+          "value": "AAAA"
         },
         {
-          "value": "MX",
-          "label": "MX (Mail Exchange)"
+          "label": "MX (Mail Exchange)",
+          "value": "MX"
         },
         {
-          "value": "NS",
-          "label": "NS (Name Server)"
+          "label": "NS (Name Server)",
+          "value": "NS"
         },
         {
-          "value": "TXT",
-          "label": "TXT (Text)"
+          "label": "TXT (Text)",
+          "value": "TXT"
         },
         {
-          "value": "CNAME",
-          "label": "CNAME (Canonical Name)"
+          "label": "CNAME (Canonical Name)",
+          "value": "CNAME"
         },
         {
-          "value": "ALL",
-          "label": "All Records"
+          "label": "All Records",
+          "value": "ALL"
         }
       ],
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
       "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "type": "select"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_dns_lookup",
+  "version": "1.0.0"
 }

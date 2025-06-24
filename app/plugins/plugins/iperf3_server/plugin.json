@@ -1,119 +1,84 @@
 {
-  "id": "iperf3_server",
-  "name": "iPerf3 Server",
+  "author": "NetScout-Go",
+  "category": "Performance",
   "description": "Start an iPerf3 server on this device to enable bandwidth testing from other devices",
   "icon": "dns",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "iperf3_server",
   "license": "MIT",
+  "name": "iPerf3 Server",
   "parameters": [
     {
+      "default": 5201,
+      "description": "Port to listen on for iPerf3 connections",
       "id": "port",
       "name": "Port",
-      "description": "Port to listen on for iPerf3 connections",
-      "type": "number",
       "required": false,
-      "default": 5201,
-      "canIterate": true
+      "type": "number"
     },
     {
+      "default": "",
+      "description": "IP address to bind the server to (empty for all interfaces)",
       "id": "bind_address",
       "name": "Bind Address",
-      "description": "IP address to bind the server to (empty for all interfaces)",
-      "type": "string",
       "required": false,
-      "default": "",
-      "canIterate": true
+      "type": "string"
     },
     {
+      "default": "both",
+      "description": "Protocol to use for the server",
       "id": "protocol",
       "name": "Protocol",
-      "description": "Protocol to use for the server",
-      "type": "select",
-      "required": false,
-      "default": "both",
       "options": [
         {
-          "value": "both",
-          "label": "TCP & UDP"
+          "label": "TCP \u0026 UDP",
+          "value": "both"
         },
         {
-          "value": "tcp",
-          "label": "TCP Only"
+          "label": "TCP Only",
+          "value": "tcp"
         },
         {
-          "value": "udp",
-          "label": "UDP Only"
+          "label": "UDP Only",
+          "value": "udp"
         }
       ],
-      "canIterate": true
-    },
-    {
-      "id": "duration",
-      "name": "Server Duration",
-      "description": "How long to run the server (minutes, 0 for manual stop)",
-      "type": "number",
       "required": false,
-      "default": 30,
-      "min": 0,
-      "max": 1440,
-      "step": 5,
-      "canIterate": true
+      "type": "select"
     },
     {
+      "default": 30,
+      "description": "How long to run the server (minutes, 0 for manual stop)",
+      "id": "duration",
+      "max": 1440,
+      "min": 0,
+      "name": "Server Duration",
+      "required": false,
+      "step": 5,
+      "type": "number"
+    },
+    {
+      "default": "start",
+      "description": "Start or stop the iPerf3 server",
       "id": "action",
       "name": "Action",
-      "description": "Start or stop the iPerf3 server",
-      "type": "select",
-      "required": true,
-      "default": "start",
       "options": [
         {
-          "value": "start",
-          "label": "Start Server"
+          "label": "Start Server",
+          "value": "start"
         },
         {
-          "value": "stop",
-          "label": "Stop Server"
+          "label": "Stop Server",
+          "value": "stop"
         },
         {
-          "value": "status",
-          "label": "Check Status"
+          "label": "Check Status",
+          "value": "status"
         }
       ],
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "required": true,
+      "type": "select"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_iperf3_server",
+  "version": "1.0.0"
 }

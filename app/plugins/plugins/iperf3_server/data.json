@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "iperf3_server",
+  "name": "Iperf3 Server",
+  "description": "Not available",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "NONE",
+  "repository": "https://github.com/NetScout-Go/Plugin_iperf3_server",
+  "icon": "NONE"
+}
+}

@@ -29,10 +29,10 @@ type Parameter struct {
 	Type        ParameterType `json:"type"`
 	Required    bool          `json:"required"`
 	Default     interface{}   `json:"default,omitempty"`
-	Options     []Option      `json:"options,omitempty"` // For select type
-	Min         *float64      `json:"min,omitempty"`     // For number/range type
-	Max         *float64      `json:"max,omitempty"`     // For number/range type
-	Step        *float64      `json:"step,omitempty"`    // For number/range type
+	Options     []Option      `json:"options,omitempty"`    // For select type
+	Min         *float64      `json:"min,omitempty"`        // For number/range type
+	Max         *float64      `json:"max,omitempty"`        // For number/range type
+	Step        *float64      `json:"step,omitempty"`       // For number/range type
 	CanIterate  bool          `json:"canIterate,omitempty"` // Whether this parameter supports iteration
 }
 

@@ -7,5 +7,6 @@ arp_lib/
 *.bak
 test/
 plugin.json.tmp
-*_backup_*
+*backup*
 *.new
+config.json

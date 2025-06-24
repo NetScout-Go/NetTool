@@ -1,72 +1,38 @@
 {
-  "id": "port_scanner",
-  "name": "Port Scanner",
+  "author": "NetScout-Go",
   "description": "Scans for open ports on a target host",
   "icon": "search",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "port_scanner",
   "license": "MIT",
+  "name": "Port Scanner",
   "parameters": [
     {
+      "description": "The hostname or IP address to scan",
       "id": "host",
       "name": "Host",
-      "description": "The hostname or IP address to scan",
-      "type": "string",
       "required": true,
-      "canIterate": true
+      "type": "string"
     },
     {
+      "default": "1-1024",
+      "description": "Range of ports to scan (e.g., 22-80)",
       "id": "portRange",
       "name": "Port Range",
-      "description": "Range of ports to scan (e.g., 22-80)",
-      "type": "string",
       "required": true,
-      "default": "1-1024",
-      "canIterate": true
+      "type": "string"
     },
     {
-      "id": "timeout",
-      "name": "Timeout",
-      "description": "Timeout in seconds for each port",
-      "type": "number",
-      "required": false,
       "default": 1,
-      "min": 0.1,
+      "description": "Timeout in seconds for each port",
+      "id": "timeout",
       "max": 10,
+      "min": 0.1,
+      "name": "Timeout",
+      "required": false,
       "step": 0.1,
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "type": "number"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_port_scanner",
+  "version": "1.0.0"
 }

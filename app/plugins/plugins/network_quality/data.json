@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "network_quality",
+  "name": "Network Quality",
+  "description": "Not available",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "NONE",
+  "repository": "https://github.com/NetScout-Go/Plugin_network_quality",
+  "icon": "NONE"
+}
+}

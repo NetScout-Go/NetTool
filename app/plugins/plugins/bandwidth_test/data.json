@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "bandwidth_test",
+  "name": "Bandwidth Test",
+  "description": "Tests upload and download speeds",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "performance",
+  "repository": "https://github.com/NetScout-Go/Plugin_bandwidth_test",
+  "icon": "speedometer2"
+}
+}

@@ -1,95 +1,60 @@
 {
-  "id": "external_plugin",
-  "name": "External Plugin Interface",
+  "author": "NetScout-Go",
   "description": "Interface for running plugins built in other programming languages",
   "icon": "extension",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "external_plugin",
   "license": "MIT",
+  "name": "External Plugin Interface",
   "parameters": [
     {
+      "default": "python",
+      "description": "Type of external plugin to run",
       "id": "plugin_type",
       "name": "Plugin Type",
-      "description": "Type of external plugin to run",
-      "type": "select",
-      "required": true,
-      "default": "python",
       "options": [
         {
-          "value": "python",
-          "label": "Python Plugin"
+          "label": "Python Plugin",
+          "value": "python"
         },
         {
-          "value": "bash",
-          "label": "Bash Plugin"
+          "label": "Bash Plugin",
+          "value": "bash"
         },
         {
-          "value": "custom",
-          "label": "Custom Plugin (provide path)"
+          "label": "Custom Plugin (provide path)",
+          "value": "custom"
         }
       ],
-      "canIterate": true
+      "required": true,
+      "type": "select"
     },
     {
+      "description": "Absolute path to the external plugin executable (only needed for custom plugins)",
       "id": "plugin_path",
       "name": "Custom Plugin Path",
-      "description": "Absolute path to the external plugin executable (only needed for custom plugins)",
-      "type": "string",
       "required": false,
-      "canIterate": true
+      "type": "string"
     },
     {
-      "id": "timeout",
-      "name": "Timeout (seconds)",
-      "description": "Maximum execution time for the external plugin",
-      "type": "number",
-      "required": false,
       "default": 30,
-      "min": 1,
+      "description": "Maximum execution time for the external plugin",
+      "id": "timeout",
       "max": 300,
+      "min": 1,
+      "name": "Timeout (seconds)",
+      "required": false,
       "step": 1,
-      "canIterate": true
+      "type": "number"
     },
     {
+      "default": "{}",
+      "description": "JSON string of additional parameters to pass to the external plugin",
       "id": "custom_params",
       "name": "Custom Parameters",
-      "description": "JSON string of additional parameters to pass to the external plugin",
-      "type": "string",
       "required": false,
-      "default": "{}",
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "type": "string"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_external_plugin",
+  "version": "1.0.0"
 }

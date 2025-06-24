@@ -51,6 +51,7 @@ type Dependency struct {
 type PluginInstaller struct {
 	pluginsDir string
 	manager    *PluginManager
+	config     *ConfigManager
 	// List of GitHub organizations from which plugins can be installed
 	pluginSources []PluginSource
 }
@@ -61,6 +62,25 @@ type PluginSource struct {
 	Organization string `json:"organization"`
 	IsDefault    bool   `json:"isDefault"`
 	Pattern      string `json:"pattern"` // Naming pattern for plugins (e.g., "Plugin_*" or "plugin-*")
+}
+
+// PluginListItem represents a plugin in the store listing
+type PluginListItem struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+	Author      string `json:"author"`
+	License     string `json:"license"`
+	Category    string `json:"category"`
+	Repository  string `json:"repository"`
+	Icon        string `json:"icon"`
+	Installed   bool   `json:"installed"`
+}
+
+// PluginCatalog represents the catalog of available plugins
+type PluginCatalog struct {
+	Plugins []PluginListItem `json:"plugins"`
 }
 
 // NewPluginInstaller creates a new plugin installer
@@ -75,10 +95,18 @@ func NewPluginInstaller(pluginsDir string, manager *PluginManager) *PluginInstal
 		},
 	}
 
+	// Create config manager
+	configManager := NewConfigManager("app/plugins/config.json")
+	err := configManager.LoadConfiguration()
+	if err != nil {
+		fmt.Printf("Warning: Failed to load configuration: %v\n", err)
+	}
+
 	// Create plugin installer
 	return &PluginInstaller{
 		pluginsDir:    pluginsDir,
 		manager:       manager,
+		config:        configManager,
 		pluginSources: defaultSources,
 	}
 }
@@ -618,14 +646,39 @@ func (pi *PluginInstaller) ListGitHubPlugins(org string) ([]map[string]interface
 	// GitHub API URL for organization repositories
 	url := fmt.Sprintf("https://api.github.com/orgs/%s/repos?per_page=100", org)
 
-	// Make a request to the GitHub API
-	resp, err := http.Get(url)
+	// Create a new request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add authentication if available
+	token, err := pi.config.GetTokenForOrganization(org)
+	if err == nil && token != "" {
+		req.Header.Add("Authorization", "token "+token)
+	}
+
+	// Add User-Agent header required by GitHub API
+	req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
+	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
+	// Make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch repositories: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Check for rate limiting
+		if resp.StatusCode == http.StatusForbidden {
+			rateLimitRemaining := resp.Header.Get("X-RateLimit-Remaining")
+			if rateLimitRemaining == "0" {
+				resetTimeStr := resp.Header.Get("X-RateLimit-Reset")
+				return nil, fmt.Errorf("GitHub API rate limit exceeded. Add a personal access token in config.json to increase the limit. Resets at %s", resetTimeStr)
+			}
+		}
 		return nil, fmt.Errorf("GitHub API returned status code %d", resp.StatusCode)
 	}
 
@@ -783,8 +836,25 @@ func (pi *PluginInstaller) isValidGitHubOrg(org string) bool {
 	// GitHub API URL for organization
 	url := fmt.Sprintf("https://api.github.com/orgs/%s", org)
 
-	// Make a request to the GitHub API
-	resp, err := http.Get(url)
+	// Create a new request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return false
+	}
+
+	// Add authentication if available
+	token, err := pi.config.GetTokenForOrganization(org)
+	if err == nil && token != "" {
+		req.Header.Add("Authorization", "token "+token)
+	}
+
+	// Add User-Agent header required by GitHub API
+	req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
+	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
+	// Make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return false
 	}
@@ -792,6 +862,205 @@ func (pi *PluginInstaller) isValidGitHubOrg(org string) bool {
 
 	// Check if the organization exists
 	return resp.StatusCode == http.StatusOK
+}
+
+// ListAvailablePlugins returns a list of available plugins from the catalog and GitHub
+func (pi *PluginInstaller) ListAvailablePlugins() ([]PluginListItem, error) {
+	// Get installed plugins
+	installedPlugins, err := pi.ListInstalledPlugins()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list installed plugins: %v", err)
+	}
+
+	// Build catalog from individual plugin.json files
+	var pluginItems []PluginListItem
+
+	// Create map of installed plugins for quick lookup
+	installedMap := make(map[string]bool)
+	for _, plugin := range installedPlugins {
+		installedMap[plugin.ID] = true
+
+		// Convert each installed plugin to a PluginListItem
+		item := PluginListItem{
+			ID:          plugin.ID,
+			Name:        plugin.Name,
+			Description: plugin.Description,
+			Version:     plugin.Version,
+			Author:      plugin.Author,
+			License:     plugin.License,
+			Icon:        plugin.Icon,
+			Installed:   true,
+		}
+
+		// Try to get repository information if available in the GitInfo
+		if plugin.GitInfo.Repository != "" {
+			if plugin.GitInfo.Organization != "" {
+				item.Repository = fmt.Sprintf("https://github.com/%s/%s",
+					plugin.GitInfo.Organization, plugin.GitInfo.Repository)
+			}
+		}
+
+		pluginItems = append(pluginItems, item)
+	}
+
+	// Optionally, we could fetch additional plugins from GitHub here
+	// This would involve using the GitHub API to query organizations for repositories
+	// matching the plugin naming pattern
+
+	return pluginItems, nil
+}
+
+// RefreshPluginCatalog fetches the latest plugins from GitHub and updates individual plugin.json files
+func (pi *PluginInstaller) RefreshPluginCatalog() error {
+	// Fetch plugins from each configured source
+	for _, source := range pi.pluginSources {
+		// Construct GitHub API URL to list repositories
+		apiURL := fmt.Sprintf("https://api.github.com/orgs/%s/repos", source.Organization)
+
+		// Make the request
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			log.Printf("Error creating request for %s: %v", source.Organization, err)
+			continue
+		}
+
+		// Add authentication if available
+		token, err := pi.config.GetTokenForOrganization(source.Organization)
+		if err == nil && token != "" {
+			req.Header.Add("Authorization", "token "+token)
+		}
+
+		// Add GitHub API version header
+		req.Header.Add("Accept", "application/vnd.github.v3+json")
+		req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
+
+		// Send the request
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("Error fetching repositories from %s: %v", source.Organization, err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		// Check response
+		if resp.StatusCode != http.StatusOK {
+			// Check for rate limiting
+			if resp.StatusCode == http.StatusForbidden {
+				rateLimitRemaining := resp.Header.Get("X-RateLimit-Remaining")
+				if rateLimitRemaining == "0" {
+					resetTimeStr := resp.Header.Get("X-RateLimit-Reset")
+					log.Printf("GitHub API rate limit exceeded for %s. Add a personal access token in config.json to increase the limit. Resets at %s", source.Organization, resetTimeStr)
+					continue
+				}
+			}
+
+			body, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("GitHub API error (%d) for %s: %s", resp.StatusCode, source.Organization, string(body))
+			continue
+		}
+
+		// Parse the response
+		var repos []struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			HTMLURL     string `json:"html_url"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
+			log.Printf("Error parsing GitHub response for %s: %v", source.Organization, err)
+			continue
+		}
+
+		// Process each repository that matches the plugin pattern
+		for _, repo := range repos {
+			// Check if repo name matches plugin pattern (e.g., "Plugin_*")
+			if !strings.HasPrefix(repo.Name, "Plugin_") {
+				continue
+			}
+
+			// Extract plugin ID from repo name (e.g., "Plugin_ping" -> "ping")
+			pluginID := strings.TrimPrefix(repo.Name, "Plugin_")
+
+			// Check if plugin directory exists locally
+			pluginDir := filepath.Join(pi.pluginsDir, pluginID)
+			if _, err := os.Stat(pluginDir); os.IsNotExist(err) {
+				// Plugin not installed, skip updating its plugin.json
+				continue
+			}
+
+			// Read existing plugin.json if it exists
+			jsonPath := filepath.Join(pluginDir, "plugin.json")
+			var pluginData map[string]interface{}
+
+			existingData, err := ioutil.ReadFile(jsonPath)
+			if err == nil {
+				// If plugin.json exists, unmarshal it
+				if err := json.Unmarshal(existingData, &pluginData); err != nil {
+					log.Printf("Error parsing existing plugin.json for %s: %v", pluginID, err)
+					// Initialize empty map if parsing failed
+					pluginData = make(map[string]interface{})
+				}
+			} else {
+				// Initialize empty map if file doesn't exist
+				pluginData = make(map[string]interface{})
+			}
+
+			// Fetch plugin.json from GitHub to get latest metadata
+			pluginJSONURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/plugin.json",
+				source.Organization, repo.Name)
+
+			pluginResp, err := http.Get(pluginJSONURL)
+			if err == nil && pluginResp.StatusCode == http.StatusOK {
+				var remotePluginData map[string]interface{}
+
+				if err := json.NewDecoder(pluginResp.Body).Decode(&remotePluginData); err == nil {
+					// Update local plugin data with remote data
+					for key, value := range remotePluginData {
+						pluginData[key] = value
+					}
+				}
+				pluginResp.Body.Close()
+			}
+
+			// Ensure basic fields are set
+			if _, ok := pluginData["id"]; !ok {
+				pluginData["id"] = pluginID
+			}
+			if _, ok := pluginData["name"]; !ok {
+				pluginData["name"] = strings.ReplaceAll(pluginID, "_", " ")
+			}
+			if _, ok := pluginData["repository"]; !ok {
+				pluginData["repository"] = repo.HTMLURL
+			}
+			if _, ok := pluginData["description"]; !ok && repo.Description != "" {
+				pluginData["description"] = repo.Description
+			}
+			if _, ok := pluginData["author"]; !ok {
+				pluginData["author"] = source.Organization
+			}
+			if _, ok := pluginData["license"]; !ok {
+				pluginData["license"] = "GPL-3.0" // Default license
+			}
+			if _, ok := pluginData["version"]; !ok {
+				pluginData["version"] = "1.0.0" // Default version
+			}
+
+			// Write updated plugin.json
+			updatedData, err := json.MarshalIndent(pluginData, "", "  ")
+			if err != nil {
+				log.Printf("Error marshaling plugin.json for %s: %v", pluginID, err)
+				continue
+			}
+
+			if err := ioutil.WriteFile(jsonPath, updatedData, 0644); err != nil {
+				log.Printf("Error writing plugin.json for %s: %v", pluginID, err)
+				continue
+			}
+		}
+	}
+
+	return nil
 }
 
 // Helper functions
@@ -1133,4 +1402,45 @@ func (pi *PluginInstaller) buildPlugin(pluginDir string) error {
 	cmd = exec.Command("go", "build", "-o", "plugin.so", "-buildmode=plugin", ".")
 	cmd.Dir = pluginDir
 	return cmd.Run()
+}
+
+// InstallPluginFromRepository installs a plugin from a GitHub repository
+func (pi *PluginInstaller) InstallPluginFromRepository(repository string) error { // Extract organization and repo name from repository URL
+	// Example: https://github.com/NetScout-Go/Plugin_ping
+	parts := strings.Split(repository, "/")
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid repository URL format")
+	}
+
+	// Get the repo name (last part)
+	repoName := parts[len(parts)-1]
+
+	// Check if the repository is a valid plugin repository
+	if !strings.HasPrefix(repoName, "Plugin_") {
+		return fmt.Errorf("repository name must start with 'Plugin_'")
+	}
+
+	// Extract plugin ID
+	pluginID := strings.TrimPrefix(repoName, "Plugin_")
+
+	// Create plugin directory if it doesn't exist
+	pluginDir := filepath.Join(pi.pluginsDir, pluginID)
+	if _, err := os.Stat(pluginDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(pluginDir, 0755); err != nil {
+			return fmt.Errorf("failed to create plugin directory: %v", err)
+		}
+	}
+
+	// Clone the repository
+	cmd := exec.Command("git", "clone", repository, pluginDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to clone repository: %v", err)
+	}
+
+	// Refresh the plugins
+	if err := pi.manager.RefreshPlugins(); err != nil {
+		return fmt.Errorf("failed to refresh plugins: %v", err)
+	}
+
+	return nil
 }

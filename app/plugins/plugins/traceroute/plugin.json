@@ -1,64 +1,31 @@
 {
-  "id": "traceroute",
-  "name": "Traceroute",
+  "author": "NetScout-Go",
   "description": "Traces the route packets take to a network host",
   "icon": "route",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "traceroute",
   "license": "MIT",
+  "name": "Traceroute",
   "parameters": [
     {
+      "default": "8.8.8.8",
+      "description": "The hostname or IP address to trace",
       "id": "host",
       "name": "Host",
-      "description": "The hostname or IP address to trace",
-      "type": "string",
       "required": true,
-      "default": "8.8.8.8",
-      "canIterate": true
+      "type": "string"
     },
     {
-      "id": "maxHops",
-      "name": "Max Hops",
-      "description": "Maximum number of hops to trace",
-      "type": "number",
-      "required": false,
       "default": 30,
-      "min": 1,
+      "description": "Maximum number of hops to trace",
+      "id": "maxHops",
       "max": 64,
+      "min": 1,
+      "name": "Max Hops",
+      "required": false,
       "step": 1,
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "type": "number"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_traceroute",
+  "version": "1.0.0"
 }

@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "dns_propagation",
+  "name": "DNS Propagation Checker",
+  "description": "Checks DNS propagation of a domain across multiple DNS servers worldwide",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "dns",
+  "repository": "https://github.com/NetScout-Go/Plugin_dns_propagation",
+  "icon": "broadcast-pin"
+}
+}

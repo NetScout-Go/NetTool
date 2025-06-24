@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "ping",
+  "name": "Ping",
+  "description": "Tests connectivity to a host by sending ICMP echo requests",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "network",
+  "repository": "https://github.com/NetScout-Go/Plugin_ping",
+  "icon": "send"
+}
+}

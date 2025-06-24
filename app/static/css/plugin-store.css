@@ -1,0 +1,103 @@
+/* Plugin Store Styles */
+.plugin-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.plugin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.plugin-card .card-header {
+    padding: 0.75rem;
+    font-weight: 500;
+}
+
+.plugin-card .card-footer {
+    background-color: rgba(0, 0, 0, 0.02);
+    padding: 0.75rem;
+}
+
+.plugin-meta {
+    margin-top: 1rem;
+}
+
+.plugin-meta .badge {
+    font-size: 0.75rem;
+}
+
+#pluginStoreGrid {
+    min-height: 300px;
+}
+
+/* Search and filter controls */
+.store-filters {
+    margin-bottom: 1.5rem;
+}
+
+/* Category badges */
+.badge.bg-network {
+    background-color: #0d6efd !important;
+}
+
+.badge.bg-performance {
+    background-color: #fd7e14 !important;
+}
+
+.badge.bg-dns {
+    background-color: #20c997 !important;
+}
+
+.badge.bg-connectivity {
+    background-color: #6f42c1 !important;
+}
+
+.badge.bg-security {
+    background-color: #dc3545 !important;
+}
+
+.badge.bg-other {
+    background-color: #6c757d !important;
+}
+
+/* Tab styling */
+#pluginManagerTabs .nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+}
+
+#pluginManagerTabs .nav-link i {
+    margin-right: 0.5rem;
+    font-size: 1.1rem;
+}
+
+/* Modal adjustments */
+.plugin-details-content {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Plugin store empty state */
+.store-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.store-empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #6c757d;
+}
+
+.store-empty-state h4 {
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.store-empty-state p {
+    margin-bottom: 1.5rem;
+    color: #6c757d;
+}

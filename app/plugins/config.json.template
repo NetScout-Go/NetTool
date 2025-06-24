@@ -1,0 +1,19 @@
+{
+  "github": {
+    "tokens": [
+      {
+        "name": "default",
+        "token": "",
+        "organization": "NetScout-Go"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "name": "NetScout-Go",
+      "organization": "NetScout-Go",
+      "isDefault": true,
+      "pattern": "Plugin_*"
+    }
+  ]
+}

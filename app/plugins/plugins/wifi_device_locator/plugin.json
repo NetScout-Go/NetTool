@@ -1,108 +1,72 @@
 {
-  "id": "wifi_device_locator",
-  "name": "Wi-Fi Device Locator",
+  "author": "NetScout-Go",
   "description": "Helps locate nearby Wi-Fi devices (access points and clients) by displaying their signal strength and other information",
   "icon": "wifi",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "wifi_device_locator",
   "license": "MIT",
+  "name": "Wi-Fi Device Locator",
   "parameters": [
     {
+      "default": "wlan0",
+      "description": "The wireless interface to use for scanning",
       "id": "interface",
       "name": "Wi-Fi Interface",
-      "description": "The wireless interface to use for scanning",
-      "type": "string",
       "required": true,
-      "default": "wlan0",
-      "canIterate": true
+      "type": "string"
     },
     {
-      "id": "scan_time",
-      "name": "Scan Time",
-      "description": "Time in seconds to scan for devices",
-      "type": "number",
-      "required": false,
       "default": 10,
-      "min": 5,
+      "description": "Time in seconds to scan for devices",
+      "id": "scan_time",
       "max": 60,
+      "min": 5,
+      "name": "Scan Time",
+      "required": false,
       "step": 5,
-      "canIterate": true
+      "type": "number"
     },
     {
+      "default": "all",
+      "description": "Type of devices to scan for",
       "id": "scan_mode",
       "name": "Scan Mode",
-      "description": "Type of devices to scan for",
-      "type": "select",
-      "required": true,
-      "default": "all",
       "options": [
         {
-          "value": "all",
-          "label": "All Devices"
+          "label": "All Devices",
+          "value": "all"
         },
         {
-          "value": "ap",
-          "label": "Access Points Only"
+          "label": "Access Points Only",
+          "value": "ap"
         },
         {
-          "value": "client",
-          "label": "Client Devices Only"
+          "label": "Client Devices Only",
+          "value": "client"
         }
       ],
-      "canIterate": true
+      "required": true,
+      "type": "select"
     },
     {
-      "id": "min_signal_strength",
-      "name": "Minimum Signal Strength",
-      "description": "Minimum signal strength to display (dBm)",
-      "type": "number",
-      "required": false,
       "default": -80,
-      "min": -100,
+      "description": "Minimum signal strength to display (dBm)",
+      "id": "min_signal_strength",
       "max": -30,
+      "min": -100,
+      "name": "Minimum Signal Strength",
+      "required": false,
       "step": 5,
-      "canIterate": true
+      "type": "number"
     },
     {
+      "default": false,
+      "description": "Continuously update signal strength (useful for locating devices)",
       "id": "continuous_scan",
       "name": "Continuous Scan",
-      "description": "Continuously update signal strength (useful for locating devices)",
-      "type": "boolean",
       "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "type": "boolean"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_wifi_device_locator",
+  "version": "1.0.0"
 }

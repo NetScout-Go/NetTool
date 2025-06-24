@@ -1,64 +1,31 @@
 {
-  "id": "example",
-  "name": "Example Plugin",
+  "author": "NetScout-Go",
   "description": "An example plugin that demonstrates how to create a modular plugin",
   "icon": "code",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "example",
   "license": "MIT",
+  "name": "Example Plugin",
   "parameters": [
     {
+      "default": "Hello, NetScout!",
+      "description": "A message to echo back",
       "id": "message",
       "name": "Message",
-      "description": "A message to echo back",
-      "type": "string",
       "required": true,
-      "default": "Hello, NetScout!",
-      "canIterate": true
+      "type": "string"
     },
     {
-      "id": "repeat",
-      "name": "Repeat Count",
-      "description": "Number of times to repeat the message",
-      "type": "number",
-      "required": false,
       "default": 1,
-      "min": 1,
+      "description": "Number of times to repeat the message",
+      "id": "repeat",
       "max": 10,
+      "min": 1,
+      "name": "Repeat Count",
+      "required": false,
       "step": 1,
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "type": "number"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_example",
+  "version": "1.0.0"
 }

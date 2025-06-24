@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "traceroute",
+  "name": "Traceroute",
+  "description": "Traces the route packets take to a network host",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "network",
+  "repository": "https://github.com/NetScout-Go/Plugin_traceroute",
+  "icon": "signpost-split"
+}
+}

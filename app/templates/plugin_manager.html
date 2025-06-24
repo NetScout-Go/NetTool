@@ -11,93 +11,178 @@
         </div>
     </div>
 
-    <div class="row">
-        <!-- Installed Plugins -->
-        <div class="col-md-8 mb-4">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Installed Plugins</h5>
-                    <button id="refreshPluginsBtn" class="btn btn-sm btn-primary">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
+    <!-- Tab navigation -->
+    <ul class="nav nav-tabs mb-4" id="pluginManagerTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="installed-tab" data-bs-toggle="tab" data-bs-target="#installed" type="button" role="tab" aria-controls="installed" aria-selected="true">
+                <i class="bi bi-box me-2"></i>Installed Plugins
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="store-tab" data-bs-toggle="tab" data-bs-target="#store" type="button" role="tab" aria-controls="store" aria-selected="false">
+                <i class="bi bi-shop me-2"></i>Plugin Store
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab content -->
+    <div class="tab-content" id="pluginManagerTabsContent">
+        <!-- Installed Plugins Tab -->
+        <div class="tab-pane fade show active" id="installed" role="tabpanel" aria-labelledby="installed-tab">
+            <div class="row">
+                <!-- Installed Plugins -->
+                <div class="col-md-8 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">Installed Plugins</h5>
+                            <button id="refreshPluginsBtn" class="btn btn-sm btn-primary">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="installedPluginsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Version</th>
+                                            <th>Author</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Plugins will be loaded here dynamically -->
+                                        <tr class="placeholder-row">
+                                            <td colspan="5" class="text-center">Loading plugins...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover" id="installedPluginsTable">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Version</th>
-                                    <th>Author</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Plugins will be loaded here dynamically -->
-                                <tr class="placeholder-row">
-                                    <td colspan="5" class="text-center">Loading plugins...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+
+                <!-- Plugin Actions -->
+                <div class="col-md-4 mb-4">
+                    <div class="card mb-4 repository-card">
+                        <div class="card-header repository-header">
+                            <h5 class="card-title mb-0">Repository Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="repository-actions">
+                                <button class="btn btn-primary w-100" id="checkUpdatesBtn">
+                                    <i class="bi bi-arrow-repeat"></i> Check for Updates
+                                </button>
+                                <button class="btn btn-info w-100 mt-2" id="syncRepoBtn">
+                                    <i class="bi bi-cloud-download"></i> Sync with Repository
+                                </button>
+                                <div class="repo-stats mt-3">
+                                    <div class="stat-item">
+                                        <i class="bi bi-plugin"></i> <span id="plugin-count">0</span> plugins
+                                    </div>
+                                    <div class="stat-item">
+                                        <i class="bi bi-arrow-up-circle"></i> <span id="update-count">0</span> updates available
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Install New Plugin</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="installPluginForm">
+                                <div class="mb-3">
+                                    <label for="pluginUrl" class="form-label">Plugin URL or Git Repository</label>
+                                    <input type="text" class="form-control" id="pluginUrl" 
+                                        placeholder="https://github.com/user/plugin" required>
+                                    <div class="form-text">Enter a URL to a Git repository or a zip file</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary" id="installPluginBtn">
+                                    <i class="bi bi-cloud-download"></i> Install Plugin
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Upload Plugin</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="uploadPluginForm">
+                                <div class="mb-3">
+                                    <label for="pluginFile" class="form-label">Plugin Package (.zip)</label>
+                                    <input type="file" class="form-control" id="pluginFile" accept=".zip" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary" id="uploadPluginBtn">
+                                    <i class="bi bi-upload"></i> Upload Plugin
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Plugin Actions -->
-        <div class="col-md-4 mb-4">
-            <div class="card mb-4 repository-card">
-                <div class="card-header repository-header">
-                    <h5 class="card-title mb-0">Repository Actions</h5>
-                </div>
-                <div class="card-body">
-                    <div class="repository-actions">
-                        <button class="btn btn-primary w-100" id="checkUpdatesBtn">
-                            <i class="bi bi-arrow-repeat"></i> Check for Updates
-                        </button>
-                        <button class="btn btn-info w-100" id="syncRepoBtn">
-                            <i class="bi bi-cloud-download"></i> Sync with Repository
-                        </button>
-                        <div class="repo-stats mt-3">
-                            <div class="stat-item">
-                                <i class="bi bi-plugin"></i> <span id="plugin-count">0</span> plugins
+        <!-- Plugin Store Tab -->
+        <div class="tab-pane fade" id="store" role="tabpanel" aria-labelledby="store-tab">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">Available Plugins</h5>
+                            <div>
+                                <button id="refreshCatalogBtn" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-cloud-download me-1"></i> Refresh Catalog
+                                </button>
                             </div>
-                            <div class="stat-item">
-                                <i class="bi bi-arrow-up-circle"></i> <span id="update-count">0</span> updates available
+                        </div>
+                        <div class="card-body">
+                            <!-- Search and filter controls -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" class="form-control" id="storeSearchInput" placeholder="Search plugins...">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="categoryFilter">
+                                        <option value="">All Categories</option>
+                                        <option value="network">Network</option>
+                                        <option value="performance">Performance</option>
+                                        <option value="dns">DNS</option>
+                                        <option value="connectivity">Connectivity</option>
+                                        <option value="security">Security</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="showInstalledToggle" checked>
+                                        <label class="form-check-label" for="showInstalledToggle">Show Installed</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Plugin cards grid -->
+                            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="pluginStoreGrid">
+                                <div class="col-12 text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-3">Loading plugin catalog...</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Install New Plugin</h5>
-                </div>
-                <div class="card-body">
-                    <form id="installPluginForm">
-                        <div class="mb-3">
-                            <label for="pluginUrl" class="form-label">Plugin URL or Git Repository</label>
-                            <input type="text" class="form-control" id="pluginUrl" 
-                                   placeholder="https://github.com/user/plugin" required>
-                            <div class="form-text">Enter a URL to a Git repository or a zip file</div>
-                        </div>
-                        <button type="submit" class="btn btn-primary" id="installPluginBtn">
-                            <i class="bi bi-cloud-download"></i> Install Plugin
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Upload Plugin</h5>
-                </div>
-                <div class="card-body">
-                    <form id="uploadPluginForm">
-                        <div class="mb-3">
-                            <label for="pluginFile" class="form-label">Plugin Package (.zip)</label>
+        </div>
+    </div>
                             <input type="file" class="form-control" id="pluginFile" accept=".zip" required>
                         </div>
                         <button type="submit" class="btn btn-primary" id="uploadPluginBtn">
@@ -126,6 +211,9 @@
                     <a href="#" class="btn btn-link me-auto" id="viewPluginReadme" target="_blank">
                         <i class="bi bi-file-text"></i> View README
                     </a>
+                    <button type="button" class="btn btn-outline-success d-none" id="installPluginFromStoreBtn">
+                        <i class="bi bi-download"></i> Install
+                    </button>
                     <button type="button" class="btn btn-outline-danger" id="uninstallPluginBtn">
                         <i class="bi bi-trash"></i> Uninstall
                     </button>
@@ -217,4 +305,5 @@
 </div>
 
 <script src="/static/js/plugin-manager-ui.js"></script>
+<script src="/static/js/plugin-store.js"></script>
 {{end}}

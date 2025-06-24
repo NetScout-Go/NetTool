@@ -1,124 +1,87 @@
 {
-  "id": "subnet_calculator",
-  "name": "Subnet Calculator",
+  "author": "NetScout-Go",
   "description": "IP subnet calculator for analyzing network addresses, calculating subnet masks, and planning network segmentation",
   "icon": "diagram-3",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "subnet_calculator",
   "license": "MIT",
+  "name": "Subnet Calculator",
   "parameters": [
     {
+      "default": "calculate",
+      "description": "The subnet operation to perform",
       "id": "action",
       "name": "Action",
-      "description": "The subnet operation to perform",
-      "type": "select",
-      "required": true,
-      "default": "calculate",
       "options": [
         {
-          "value": "calculate",
-          "label": "Calculate Subnet"
+          "label": "Calculate Subnet",
+          "value": "calculate"
         },
         {
-          "value": "divide",
-          "label": "Divide Subnet"
+          "label": "Divide Subnet",
+          "value": "divide"
         },
         {
-          "value": "supernet",
-          "label": "Calculate Supernet"
+          "label": "Calculate Supernet",
+          "value": "supernet"
         },
         {
-          "value": "aggregate",
-          "label": "Aggregate CIDRs"
+          "label": "Aggregate CIDRs",
+          "value": "aggregate"
         },
         {
-          "value": "conflict_detect",
-          "label": "Detect Network Conflicts"
+          "label": "Detect Network Conflicts",
+          "value": "conflict_detect"
         }
       ],
-      "canIterate": true
+      "required": true,
+      "type": "select"
     },
     {
+      "default": "192.168.1.0/24",
+      "description": "IP address (IPv4 or IPv6) with or without CIDR notation",
       "id": "address",
       "name": "IP Address/CIDR",
-      "description": "IP address (IPv4 or IPv6) with or without CIDR notation",
-      "type": "string",
       "required": true,
-      "default": "192.168.1.0/24",
-      "canIterate": true
+      "type": "string"
     },
     {
+      "description": "Subnet mask (e.g., '255.255.255.0' or '24') if not included in the address",
       "id": "mask",
       "name": "Subnet Mask",
-      "description": "Subnet mask (e.g., '255.255.255.0' or '24') if not included in the address",
-      "type": "string",
       "required": false,
-      "canIterate": true
+      "type": "string"
     },
     {
-      "id": "subnet_bits",
-      "name": "Subnet Bits",
-      "description": "Additional subnet bits to add to the prefix length",
-      "type": "number",
-      "required": false,
       "default": 0,
-      "min": 0,
+      "description": "Additional subnet bits to add to the prefix length",
+      "id": "subnet_bits",
       "max": 32,
-      "step": 1,
-      "canIterate": true
-    },
-    {
-      "id": "num_subnets",
-      "name": "Number of Subnets",
-      "description": "Number of subnets to divide into (for divide action)",
-      "type": "number",
+      "min": 0,
+      "name": "Subnet Bits",
       "required": false,
-      "default": 4,
-      "min": 2,
-      "max": 256,
       "step": 1,
-      "canIterate": true
+      "type": "number"
     },
     {
+      "default": 4,
+      "description": "Number of subnets to divide into (for divide action)",
+      "id": "num_subnets",
+      "max": 256,
+      "min": 2,
+      "name": "Number of Subnets",
+      "required": false,
+      "step": 1,
+      "type": "number"
+    },
+    {
+      "default": "192.168.1.0/24,192.168.2.0/24",
+      "description": "Comma-separated list of IP addresses or subnets (for supernet action)",
       "id": "ip_list",
       "name": "IP Address List",
-      "description": "Comma-separated list of IP addresses or subnets (for supernet action)",
-      "type": "string",
       "required": false,
-      "default": "192.168.1.0/24,192.168.2.0/24",
-      "canIterate": true
-    },
-    {
-      "id": "continueToIterate",
-      "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
-      "canIterate": true
+      "type": "string"
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_subnet_calculator",
+  "version": "1.0.0"
 }

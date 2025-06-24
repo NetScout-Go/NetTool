@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "reverse_dns_lookup",
+  "name": "Reverse DNS Lookup",
+  "description": "Not available",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "NONE",
+  "repository": "https://github.com/NetScout-Go/Plugin_reverse_dns_lookup",
+  "icon": "NONE"
+}
+}

@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "arp_manager",
+  "name": "ARP Manager",
+  "description": "View and manage ARP cache entries on the local system",
+  "version": "2.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "network",
+  "repository": "https://github.com/NetScout-Go/Plugin_arp_manager",
+  "icon": "diagram-3"
+}
+}

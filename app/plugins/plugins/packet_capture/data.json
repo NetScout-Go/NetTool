@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "packet_capture",
+  "name": "Packet Capture",
+  "description": "Not available",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "NONE",
+  "repository": "https://github.com/NetScout-Go/Plugin_packet_capture",
+  "icon": "NONE"
+}
+}

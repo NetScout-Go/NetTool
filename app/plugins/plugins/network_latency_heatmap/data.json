@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "network_latency_heatmap",
+  "name": "Network Latency Heatmap",
+  "description": "Creates a visual heatmap of network latency across multiple destinations",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "network",
+  "repository": "https://github.com/NetScout-Go/Plugin_network_latency_heatmap",
+  "icon": "grid-3x3"
+}
+}

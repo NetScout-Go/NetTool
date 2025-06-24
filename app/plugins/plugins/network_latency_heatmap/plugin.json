@@ -1,109 +1,81 @@
 {
-  "id": "network_latency_heatmap",
-  "name": "Network Latency Heatmap",
+  "author": "NetScout-Go",
   "description": "Creates a visual heatmap of network latency to various targets over time",
   "icon": "network",
-  "version": "1.0.0",
-  "author": "NetScout-Go",
+  "id": "network_latency_heatmap",
   "license": "MIT",
+  "name": "Network Latency Heatmap",
   "parameters": [
     {
+      "default": "8.8.8.8,1.1.1.1,google.com",
+      "description": "Comma-separated list of hosts or IPs to ping (e.g., 8.8.8.8,1.1.1.1,example.com)",
       "id": "targets",
       "name": "Target Hosts",
-      "description": "Comma-separated list of hosts or IPs to ping (e.g., 8.8.8.8,1.1.1.1,example.com)",
-      "type": "string",
       "required": true,
-      "default": "8.8.8.8,1.1.1.1,google.com",
-      "canIterate": true
+      "type": "string"
     },
     {
-      "id": "interval",
-      "name": "Measurement Interval (seconds)",
-      "description": "Time between measurements in seconds",
-      "type": "number",
-      "required": false,
       "default": 1,
-      "min": 0.2,
+      "description": "Time between measurements in seconds",
+      "id": "interval",
       "max": 10,
+      "min": 0.2,
+      "name": "Measurement Interval (seconds)",
+      "required": false,
       "step": 0.1,
-      "canIterate": true
+      "type": "number"
     },
     {
-      "id": "samples",
-      "name": "Number of Samples",
-      "description": "Total number of samples to collect for each target",
-      "type": "number",
-      "required": false,
       "default": 30,
-      "min": 5,
+      "description": "Total number of samples to collect for each target",
+      "id": "samples",
       "max": 120,
+      "min": 5,
+      "name": "Number of Samples",
+      "required": false,
       "step": 1,
-      "canIterate": true
+      "type": "number"
     },
     {
-      "id": "timeout",
-      "name": "Ping Timeout (seconds)",
-      "description": "Maximum time to wait for each ping response",
-      "type": "number",
-      "required": false,
       "default": 2,
-      "min": 0.5,
+      "description": "Maximum time to wait for each ping response",
+      "id": "timeout",
       "max": 5,
-      "step": 0.5,
-      "canIterate": true
-    },
-    {
-      "id": "packetSize",
-      "name": "Packet Size (bytes)",
-      "description": "Size of ping packets in bytes",
-      "type": "number",
+      "min": 0.5,
+      "name": "Ping Timeout (seconds)",
       "required": false,
-      "default": 56,
-      "min": 16,
-      "max": 1472,
-      "step": 8,
-      "canIterate": true
+      "step": 0.5,
+      "type": "number"
     },
     {
+      "default": 56,
+      "description": "Size of ping packets in bytes",
+      "id": "packetSize",
+      "max": 1472,
+      "min": 16,
+      "name": "Packet Size (bytes)",
+      "required": false,
+      "step": 8,
+      "type": "number"
+    },
+    {
+      "default": true,
+      "description": "Generate an interactive graph visualization",
       "id": "showGraph",
       "name": "Show Interactive Graph",
-      "description": "Generate an interactive graph visualization",
-      "type": "boolean",
       "required": false,
-      "default": true,
-      "canIterate": true
+      "type": "boolean"
     },
     {
+      "default": false,
+      "description": "Enable repeated execution of this plugin with the same parameters",
       "id": "continueToIterate",
       "name": "Continue to iterate?",
-      "description": "Enable repeated execution of this plugin with the same parameters",
+      "required": false,
       "type": "boolean",
-      "required": false,
-      "default": false,
-      "canIterate": true
-    },
-    {
-      "id": "iterationDelay",
-      "name": "Iteration Delay (ms)",
-      "description": "Delay between iterations in milliseconds",
-      "type": "number",
-      "required": false,
-      "default": 5000,
-      "min": 1000,
-      "max": 60000,
-      "step": 1000,
-      "canIterate": true
-    },
-    {
-      "id": "maxIterations",
-      "name": "Max Iterations",
-      "description": "Maximum number of iterations (0 = unlimited)",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "min": 0,
-      "max": 100,
       "canIterate": true
     }
-  ]
+  ],
+  "repository": "https://github.com/NetScout-Go/Plugin_network_latency_heatmap",
+  "version": "1.0.0"
 }

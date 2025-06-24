@@ -1,0 +1,13 @@
+{
+  "plugin": {
+  "id": "network_info",
+  "name": "Network Information",
+  "description": "Displays detailed information about the device's network connections",
+  "version": "1.0.0",
+  "author": "NetScout-Go Team",
+  "license": "GPL-3.0",
+  "category": "network",
+  "repository": "https://github.com/NetScout-Go/Plugin_network_info",
+  "icon": "info-circle"
+}
+}

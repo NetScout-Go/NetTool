@@ -207,23 +207,44 @@ func main() {
 				c.JSON(http.StatusOK, details)
 			})
 
-			// Install plugin from URL
-			pluginManage.POST("/install", func(c *gin.Context) {
-				var req struct {
-					URL string `json:"url"`
+			// List available plugins from GitHub and local catalog
+			pluginManage.GET("/available", func(c *gin.Context) {
+				plugins, err := pluginInstaller.ListAvailablePlugins()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
 				}
-				if err := c.BindJSON(&req); err != nil {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+				c.JSON(http.StatusOK, plugins)
+			})
+
+			// Refresh plugin catalog from GitHub
+			pluginManage.POST("/refresh-catalog", func(c *gin.Context) {
+				err := pluginInstaller.RefreshPluginCatalog()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"message": "Plugin catalog refreshed successfully"})
+			})
+
+			// Install plugin from repository
+			pluginManage.POST("/install", func(c *gin.Context) {
+				var request struct {
+					Repository string `json:"repository"`
+				}
+
+				if err := c.BindJSON(&request); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
 				}
 
-				metadata, err := pluginInstaller.InstallPlugin(req.URL)
+				err := pluginInstaller.InstallPluginFromRepository(request.Repository)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
 
-				c.JSON(http.StatusOK, metadata)
+				c.JSON(http.StatusOK, gin.H{"message": "Plugin installed successfully"})
 			})
 
 			// Upload plugin (ZIP file)
