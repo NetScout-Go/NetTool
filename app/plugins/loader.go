@@ -226,11 +226,11 @@ func (p *DynamicPlugin) GetDefinition() types.PluginDefinition {
 	}
 
 	// If plugin.json read failed, try running plugin.go with --definition flag
-	cmdStr := fmt.Sprintf("cd %s && go run plugin.go --definition", p.pluginDir)
-	cmd := exec.Command("bash", "-c", cmdStr)
+	cmd := exec.Command("go", "run", "plugin.go", "--definition")
+	cmd.Dir = p.pluginDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("Error getting plugin definition for %s: %v\n", p.pluginID, err)
+		fmt.Printf("Error getting plugin definition for %s: %v\nOutput: %s\n", p.pluginID, err, string(output))
 		// As a last resort, return a default definition with error information
 		return types.PluginDefinition{
 			ID:          p.pluginID,
@@ -288,8 +288,8 @@ func (p *DynamicPlugin) executeWithMain(params map[string]interface{}) (interfac
 	}
 
 	// Run the plugin.go file with the parameters
-	cmdStr := fmt.Sprintf("cd %s && go run plugin.go --execute='%s'", p.pluginDir, string(paramsJSON))
-	cmd := exec.Command("bash", "-c", cmdStr)
+	cmd := exec.Command("go", "run", "plugin.go", fmt.Sprintf("--execute=%s", string(paramsJSON)))
+	cmd.Dir = p.pluginDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute plugin %s: %v\nOutput: %s", p.pluginID, err, string(output))
@@ -337,12 +337,14 @@ func (p *DynamicPlugin) IsIterable() bool {
 	}
 
 	// Check if the plugin.go file implements IterablePlugin interface
-	cmdStr := fmt.Sprintf("cd %s && grep -q 'BaseIterablePlugin\\|IterablePlugin\\|ShouldContinueIteration' plugin.go", p.pluginDir)
-	cmd := exec.Command("bash", "-c", cmdStr)
+	// This is a heuristic. A more robust way might involve parsing Go files,
+	// but grep is simpler for now.
+	cmd := exec.Command("grep", "-q", "BaseIterablePlugin\\|IterablePlugin\\|ShouldContinueIteration", "plugin.go")
+	cmd.Dir = p.pluginDir
 	err := cmd.Run()
 
-	// If grep found a match, the plugin implements the interface
-	p.isIterable = err == nil
+	// If grep found a match (exit code 0), the plugin implements the interface.
+	p.isIterable = (err == nil)
 	return p.isIterable
 }
 

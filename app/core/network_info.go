@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	psnet "github.com/shirou/gopsutil/v3/net"
@@ -594,6 +595,7 @@ func getVLANID(ifaceName string) int {
 
 // Stores the last measured network counter values for bandwidth calculation
 var (
+	bandwidthMutex      sync.Mutex
 	lastMeasurementTime time.Time
 	lastBytesRecv       uint64
 	lastBytesSent       uint64
@@ -601,6 +603,9 @@ var (
 )
 
 func calculateBandwidth(counter psnet.IOCountersStat) float64 {
+	bandwidthMutex.Lock()
+	defer bandwidthMutex.Unlock()
+
 	now := time.Now()
 
 	// Initialize on first call
