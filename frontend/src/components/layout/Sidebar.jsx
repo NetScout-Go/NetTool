@@ -38,6 +38,18 @@ export default function Sidebar({ isOpen, onToggle, darkMode, onDarkModeToggle }
   const { plugins, loading, loadPlugins } = usePlugins()
   const [expandedGroups, setExpandedGroups] = useState({})
 
+  // Normalize plugin data to handle both PascalCase and lowercase JSON keys
+  const normalizedPlugins = useMemo(() => {
+    return plugins.map(plugin => ({
+      ID: plugin.ID || plugin.id,
+      Name: plugin.Name || plugin.name,
+      Description: plugin.Description || plugin.description,
+      Version: plugin.Version || plugin.version,
+      Author: plugin.Author || plugin.author,
+      Icon: plugin.Icon || plugin.icon,
+    }))
+  }, [plugins])
+
   // Group plugins by category
   const pluginsByCategory = useMemo(() => {
     const grouped = {}
@@ -48,7 +60,7 @@ export default function Sidebar({ isOpen, onToggle, darkMode, onDarkModeToggle }
     })
     
     // Group plugins
-    plugins.forEach(plugin => {
+    normalizedPlugins.forEach(plugin => {
       const categoryId = getPluginCategory(plugin.ID)
       if (categoryId && grouped[categoryId]) {
         grouped[categoryId].push(plugin)
@@ -56,7 +68,7 @@ export default function Sidebar({ isOpen, onToggle, darkMode, onDarkModeToggle }
     })
     
     return grouped
-  }, [plugins])
+  }, [normalizedPlugins])
 
   // Get categories with plugins
   const categoriesWithPlugins = useMemo(() => {

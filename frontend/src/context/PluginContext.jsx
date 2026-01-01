@@ -1,6 +1,32 @@
 import { createContext, useContext, useState, useEffect, useCallback, useReducer } from 'react'
 import { pluginsApi, pluginManagerApi } from '../api'
 
+// Normalize plugin data to handle both PascalCase and lowercase JSON keys
+function normalizePlugin(plugin) {
+  return {
+    ID: plugin.ID || plugin.id,
+    Name: plugin.Name || plugin.name,
+    Description: plugin.Description || plugin.description,
+    Version: plugin.Version || plugin.version,
+    Author: plugin.Author || plugin.author,
+    License: plugin.License || plugin.license,
+    Icon: plugin.Icon || plugin.icon,
+    Parameters: (plugin.Parameters || plugin.parameters || []).map(param => ({
+      id: param.id || param.ID,
+      name: param.name || param.Name,
+      description: param.description || param.Description,
+      type: param.type || param.Type,
+      required: param.required || param.Required || false,
+      default: param.default || param.Default,
+      options: param.options || param.Options,
+      min: param.min || param.Min,
+      max: param.max || param.Max,
+      step: param.step || param.Step,
+      canIterate: param.canIterate || param.CanIterate || false,
+    })),
+  }
+}
+
 // Action types for plugin state
 const PLUGIN_ACTIONS = {
   SET_PLUGINS: 'SET_PLUGINS',
@@ -110,7 +136,9 @@ export function PluginProvider({ children }) {
     
     try {
       const response = await pluginsApi.getAll()
-      dispatch({ type: PLUGIN_ACTIONS.SET_PLUGINS, payload: response.data || [] })
+      const rawPlugins = response.data || []
+      const normalizedPlugins = rawPlugins.map(normalizePlugin)
+      dispatch({ type: PLUGIN_ACTIONS.SET_PLUGINS, payload: normalizedPlugins })
     } catch (err) {
       console.error('Failed to load plugins:', err)
       dispatch({ type: PLUGIN_ACTIONS.SET_ERROR, payload: 'Failed to load plugins' })
@@ -141,7 +169,7 @@ export function PluginProvider({ children }) {
   const getPlugin = useCallback(async (id) => {
     try {
       const response = await pluginsApi.getById(id)
-      return response.data
+      return normalizePlugin(response.data)
     } catch (err) {
       console.error(`Failed to get plugin ${id}:`, err)
       throw err
