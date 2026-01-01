@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 
 const gradientClasses = {
-  blue: 'gradient-blue',
+  blue: 'gradient-orange',
   cyan: 'gradient-cyan',
   purple: 'gradient-purple',
   orange: 'gradient-orange',
@@ -11,10 +11,10 @@ const gradientClasses = {
 
 const badgeVariants = {
   success: 'bg-green-500/20 text-green-400 border-green-500/30',
-  warning: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  warning: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
   error: 'bg-red-500/20 text-red-400 border-red-500/30',
-  cyan: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-  purple: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  cyan: 'bg-dark-500/20 text-dark-300 border-dark-500/30',
+  purple: 'bg-dark-600/20 text-dark-300 border-dark-600/30',
   orange: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
 }
 

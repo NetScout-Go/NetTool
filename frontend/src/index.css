@@ -10,7 +10,7 @@
   
   body {
     @apply bg-dark-950 text-dark-100 font-sans antialiased;
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    background: linear-gradient(135deg, #09090b 0%, #18181b 50%, #09090b 100%);
     min-height: 100vh;
   }
   
@@ -40,13 +40,13 @@
   /* Glassmorphism Card */
   .glass-card {
     @apply relative overflow-hidden rounded-2xl;
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(30, 27, 75, 0.6) 100%);
+    background: linear-gradient(135deg, rgba(39, 39, 42, 0.9) 0%, rgba(24, 24, 27, 0.95) 100%);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(63, 63, 70, 0.5);
     box-shadow: 
-      0 8px 32px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
   
   .glass-card::before {
@@ -54,52 +54,52 @@
     @apply absolute inset-0 pointer-events-none;
     background: radial-gradient(
       ellipse 200% 200% at -50% -50%,
-      rgba(99, 102, 241, 0.15) 0%,
+      rgba(249, 115, 22, 0.08) 0%,
       transparent 50%
     );
   }
   
-  /* Gradient Cards */
+  /* Gradient Cards - Orange theme */
   .gradient-blue {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
-    border-color: rgba(102, 126, 234, 0.3);
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(234, 88, 12, 0.1) 100%);
+    border-color: rgba(249, 115, 22, 0.3);
   }
   
   .gradient-cyan {
-    background: linear-gradient(135deg, rgba(0, 210, 252, 0.2) 0%, rgba(58, 123, 213, 0.2) 100%);
-    border-color: rgba(0, 210, 252, 0.3);
+    background: linear-gradient(135deg, rgba(161, 161, 170, 0.1) 0%, rgba(113, 113, 122, 0.1) 100%);
+    border-color: rgba(161, 161, 170, 0.3);
   }
   
   .gradient-purple {
-    background: linear-gradient(135deg, rgba(157, 80, 187, 0.2) 0%, rgba(110, 72, 170, 0.2) 100%);
-    border-color: rgba(157, 80, 187, 0.3);
+    background: linear-gradient(135deg, rgba(82, 82, 91, 0.2) 0%, rgba(63, 63, 70, 0.2) 100%);
+    border-color: rgba(82, 82, 91, 0.3);
   }
   
   .gradient-orange {
-    background: linear-gradient(135deg, rgba(255, 154, 86, 0.2) 0%, rgba(255, 106, 136, 0.2) 100%);
-    border-color: rgba(255, 154, 86, 0.3);
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.2) 0%, rgba(251, 146, 60, 0.15) 100%);
+    border-color: rgba(249, 115, 22, 0.4);
   }
   
   .gradient-teal {
-    background: linear-gradient(135deg, rgba(0, 210, 252, 0.2) 0%, rgba(0, 168, 204, 0.2) 100%);
-    border-color: rgba(0, 210, 252, 0.3);
+    background: linear-gradient(135deg, rgba(113, 113, 122, 0.15) 0%, rgba(82, 82, 91, 0.15) 100%);
+    border-color: rgba(113, 113, 122, 0.3);
   }
   
   .gradient-pink {
-    background: linear-gradient(135deg, rgba(255, 8, 68, 0.2) 0%, rgba(255, 118, 117, 0.2) 100%);
-    border-color: rgba(255, 8, 68, 0.3);
+    background: linear-gradient(135deg, rgba(234, 88, 12, 0.15) 0%, rgba(194, 65, 12, 0.15) 100%);
+    border-color: rgba(234, 88, 12, 0.3);
   }
   
-  /* Modern Button */
+  /* Modern Button - Orange */
   .btn-primary {
     @apply relative px-6 py-2.5 rounded-xl font-medium text-white overflow-hidden transition-all duration-300;
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4);
   }
   
   .btn-primary:hover {
     @apply transform -translate-y-0.5;
-    box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 6px 25px rgba(249, 115, 22, 0.5);
   }
   
   .btn-primary:active {
@@ -108,14 +108,14 @@
   
   .btn-secondary {
     @apply relative px-6 py-2.5 rounded-xl font-medium transition-all duration-300;
-    background: rgba(148, 163, 184, 0.1);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    color: #e2e8f0;
+    background: rgba(63, 63, 70, 0.5);
+    border: 1px solid rgba(82, 82, 91, 0.5);
+    color: #e4e4e7;
   }
   
   .btn-secondary:hover {
-    background: rgba(148, 163, 184, 0.2);
-    border-color: rgba(148, 163, 184, 0.3);
+    background: rgba(82, 82, 91, 0.5);
+    border-color: rgba(113, 113, 122, 0.5);
   }
   
   /* Status Badge */
@@ -127,9 +127,9 @@
   }
   
   .status-badge.warning {
-    background: rgba(234, 179, 8, 0.2);
-    color: #facc15;
-    border-color: rgba(234, 179, 8, 0.3);
+    background: rgba(249, 115, 22, 0.2);
+    color: #fb923c;
+    border-color: rgba(249, 115, 22, 0.3);
   }
   
   .status-badge.error {
@@ -155,13 +155,13 @@
   
   .stat-item {
     @apply p-3 rounded-xl transition-all duration-300;
-    background: rgba(15, 23, 42, 0.5);
-    border: 1px solid rgba(148, 163, 184, 0.1);
+    background: rgba(9, 9, 11, 0.6);
+    border: 1px solid rgba(63, 63, 70, 0.5);
   }
   
   .stat-item:hover {
-    background: rgba(15, 23, 42, 0.7);
-    border-color: rgba(148, 163, 184, 0.2);
+    background: rgba(24, 24, 27, 0.8);
+    border-color: rgba(249, 115, 22, 0.3);
     transform: translateY(-2px);
   }
   
@@ -176,7 +176,7 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.05) 50%,
       transparent 100%
     );
     background-size: 200% 100%;
@@ -190,7 +190,7 @@
   
   .modern-table th {
     @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-dark-400;
-    background: rgba(15, 23, 42, 0.5);
+    background: rgba(9, 9, 11, 0.6);
   }
   
   .modern-table td {
@@ -198,18 +198,18 @@
   }
   
   .modern-table tr:hover td {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(249, 115, 22, 0.05);
   }
   
   /* Progress Bar */
   .progress-bar {
     @apply h-2 rounded-full overflow-hidden;
-    background: rgba(15, 23, 42, 0.5);
+    background: rgba(9, 9, 11, 0.6);
   }
   
   .progress-bar .fill {
     @apply h-full rounded-full transition-all duration-500 ease-out;
-    background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(90deg, #f97316 0%, #fb923c 100%);
   }
 }
 
@@ -217,30 +217,34 @@
 @layer utilities {
   .text-gradient {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    background-image: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
   }
   
   .text-gradient-cyan {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #00d2fc 0%, #3a7bd5 100%);
+    background-image: linear-gradient(135deg, #a1a1aa 0%, #d4d4d8 100%);
   }
   
   .border-gradient {
     border: 1px solid transparent;
-    background: linear-gradient(#0f172a, #0f172a) padding-box,
-                linear-gradient(135deg, #6366f1, #a855f7) border-box;
+    background: linear-gradient(#09090b, #09090b) padding-box,
+                linear-gradient(135deg, #f97316, #fb923c) border-box;
   }
   
-  /* Glow effects */
+  /* Glow effects - Orange */
   .glow-blue {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
   }
   
   .glow-cyan {
-    box-shadow: 0 0 20px rgba(0, 210, 252, 0.4);
+    box-shadow: 0 0 20px rgba(161, 161, 170, 0.3);
   }
   
   .glow-purple {
-    box-shadow: 0 0 20px rgba(157, 80, 187, 0.4);
+    box-shadow: 0 0 20px rgba(82, 82, 91, 0.4);
+  }
+  
+  .glow-orange {
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.5);
   }
 }

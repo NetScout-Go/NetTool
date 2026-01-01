@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // PluginMetadata represents the metadata of a plugin
@@ -112,6 +113,20 @@ type PluginDataJSON struct {
 // PluginCatalog represents the catalog of available plugins
 type PluginCatalog struct {
 	Plugins []PluginListItem `json:"plugins"`
+}
+
+// PluginCatalogCache represents the cached plugin catalog with timestamp
+type PluginCatalogCache struct {
+	Plugins     []PluginListItem `json:"plugins"`
+	LastUpdated int64            `json:"lastUpdated"` // Unix timestamp
+	Source      string           `json:"source"`      // Source organization
+}
+
+// PluginListResponse represents the response for listing available plugins
+type PluginListResponse struct {
+	Plugins     []PluginListItem `json:"plugins"`
+	LastUpdated int64            `json:"lastUpdated"`
+	FromCache   bool             `json:"fromCache"`
 }
 
 // NewPluginInstaller creates a new plugin installer
@@ -895,8 +910,55 @@ func (pi *PluginInstaller) isValidGitHubOrg(org string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-// ListAvailablePlugins returns a list of available plugins from the catalog and GitHub
+// getCachePath returns the path to the plugin catalog cache file
+func (pi *PluginInstaller) getCachePath() string {
+	return filepath.Join(pi.pluginsDir, "..", "plugin_catalog_cache.json")
+}
+
+// loadCachedCatalog loads the cached plugin catalog from disk
+func (pi *PluginInstaller) loadCachedCatalog() (*PluginCatalogCache, error) {
+	cachePath := pi.getCachePath()
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var cache PluginCatalogCache
+	if err := json.Unmarshal(data, &cache); err != nil {
+		return nil, err
+	}
+
+	return &cache, nil
+}
+
+// saveCatalogCache saves the plugin catalog to disk
+func (pi *PluginInstaller) saveCatalogCache(plugins []PluginListItem) error {
+	cache := PluginCatalogCache{
+		Plugins:     plugins,
+		LastUpdated: time.Now().Unix(),
+		Source:      "NetScout-Go",
+	}
+
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	cachePath := pi.getCachePath()
+	return os.WriteFile(cachePath, data, 0644)
+}
+
+// ListAvailablePlugins returns a list of available plugins from cache or GitHub
 func (pi *PluginInstaller) ListAvailablePlugins() ([]PluginListItem, error) {
+	response, err := pi.ListAvailablePluginsWithMeta(false)
+	if err != nil {
+		return nil, err
+	}
+	return response.Plugins, nil
+}
+
+// ListAvailablePluginsWithMeta returns plugins with metadata about cache status
+func (pi *PluginInstaller) ListAvailablePluginsWithMeta(forceRefresh bool) (*PluginListResponse, error) {
 	// Get installed plugins
 	installedPlugins, err := pi.ListInstalledPlugins()
 	if err != nil {
@@ -905,7 +967,8 @@ func (pi *PluginInstaller) ListAvailablePlugins() ([]PluginListItem, error) {
 
 	// Create map of installed plugins for quick lookup
 	installedMap := make(map[string]bool)
-	var pluginItems []PluginListItem
+	// Initialize with empty slice (not nil) to ensure JSON returns [] not null
+	pluginItems := make([]PluginListItem, 0)
 
 	// Add installed plugins to the list
 	for _, plugin := range installedPlugins {
@@ -934,26 +997,81 @@ func (pi *PluginInstaller) ListAvailablePlugins() ([]PluginListItem, error) {
 		pluginItems = append(pluginItems, item)
 	}
 
-	// Fetch plugins from GitHub sources
-	for _, source := range pi.pluginSources {
-		githubPlugins, err := pi.fetchPluginsFromGitHub(source)
-		if err != nil {
-			log.Printf("Error fetching plugins from %s: %v", source.Organization, err)
-			continue
-		}
+	// Initialize cachedPlugins as empty slice (not nil)
+	cachedPlugins := make([]PluginListItem, 0)
+	var lastUpdated int64
+	fromCache := false
 
-		// Add GitHub plugins to the list
-		for _, plugin := range githubPlugins {
-			// Skip if already installed
-			if _, exists := installedMap[plugin.ID]; exists {
-				continue
-			}
-
-			pluginItems = append(pluginItems, plugin)
+	// Try to load from cache first if not forcing refresh
+	if !forceRefresh {
+		cache, err := pi.loadCachedCatalog()
+		if err == nil && cache != nil && len(cache.Plugins) > 0 {
+			cachedPlugins = cache.Plugins
+			lastUpdated = cache.LastUpdated
+			fromCache = true
+			log.Printf("Loaded %d plugins from cache (last updated: %s)",
+				len(cachedPlugins), time.Unix(lastUpdated, 0).Format("2006-01-02 15:04:05"))
 		}
 	}
 
-	return pluginItems, nil
+	// If no cache or forcing refresh, fetch from GitHub
+	if len(cachedPlugins) == 0 || forceRefresh {
+		var githubPlugins []PluginListItem
+		var fetchError error
+
+		for _, source := range pi.pluginSources {
+			plugins, err := pi.fetchPluginsFromGitHub(source)
+			if err != nil {
+				log.Printf("Error fetching plugins from %s: %v", source.Organization, err)
+				fetchError = err
+				continue
+			}
+			githubPlugins = append(githubPlugins, plugins...)
+		}
+
+		// If we got plugins from GitHub, save to cache
+		if len(githubPlugins) > 0 {
+			cachedPlugins = githubPlugins
+			lastUpdated = time.Now().Unix()
+			fromCache = false
+
+			// Save to cache for future use
+			if err := pi.saveCatalogCache(githubPlugins); err != nil {
+				log.Printf("Warning: Failed to save plugin catalog cache: %v", err)
+			} else {
+				log.Printf("Saved %d plugins to cache", len(githubPlugins))
+			}
+		} else if fetchError != nil && len(cachedPlugins) == 0 {
+			// If GitHub fetch failed and no cache, try loading cache anyway as fallback
+			cache, err := pi.loadCachedCatalog()
+			if err == nil && cache != nil && len(cache.Plugins) > 0 {
+				cachedPlugins = cache.Plugins
+				lastUpdated = cache.LastUpdated
+				fromCache = true
+				log.Printf("GitHub API failed, using cached plugins (last updated: %s)",
+					time.Unix(lastUpdated, 0).Format("2006-01-02 15:04:05"))
+			}
+		}
+	}
+
+	// Add cached/fetched plugins to the list (excluding installed ones)
+	for _, plugin := range cachedPlugins {
+		if _, exists := installedMap[plugin.ID]; exists {
+			continue
+		}
+		pluginItems = append(pluginItems, plugin)
+	}
+
+	return &PluginListResponse{
+		Plugins:     pluginItems,
+		LastUpdated: lastUpdated,
+		FromCache:   fromCache,
+	}, nil
+}
+
+// RefreshPluginCatalog forces a refresh of the plugin catalog from GitHub
+func (pi *PluginInstaller) RefreshPluginCatalog() (*PluginListResponse, error) {
+	return pi.ListAvailablePluginsWithMeta(true)
 }
 
 // fetchPluginsFromGitHub fetches plugins from a GitHub organization that match the Plugin_ pattern
@@ -1156,159 +1274,6 @@ func (pi *PluginInstaller) fetchPluginDataJSON(org, repo string) (*PluginDataJSO
 	}
 
 	return &pluginData, nil
-}
-
-// RefreshPluginCatalog fetches the latest plugins from GitHub and updates individual plugin.json files
-func (pi *PluginInstaller) RefreshPluginCatalog() error {
-	// Fetch plugins from each configured source
-	for _, source := range pi.pluginSources {
-		// Construct GitHub API URL to list repositories
-		apiURL := fmt.Sprintf("https://api.github.com/orgs/%s/repos", source.Organization)
-
-		// Make the request
-		req, err := http.NewRequest("GET", apiURL, nil)
-		if err != nil {
-			log.Printf("Error creating request for %s: %v", source.Organization, err)
-			continue
-		}
-
-		// Add authentication if available
-		token, err := pi.config.GetTokenForOrganization(source.Organization)
-		if err == nil && token != "" {
-			req.Header.Add("Authorization", "token "+token)
-		}
-
-		// Add GitHub API version header
-		req.Header.Add("Accept", "application/vnd.github.v3+json")
-		req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
-
-		// Send the request
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Printf("Error fetching repositories from %s: %v", source.Organization, err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		// Check response
-		if resp.StatusCode != http.StatusOK {
-			// Check for rate limiting
-			if resp.StatusCode == http.StatusForbidden {
-				rateLimitRemaining := resp.Header.Get("X-RateLimit-Remaining")
-				if rateLimitRemaining == "0" {
-					resetTimeStr := resp.Header.Get("X-RateLimit-Reset")
-					log.Printf("GitHub API rate limit exceeded for %s. Add a personal access token in config.json to increase the limit. Resets at %s", source.Organization, resetTimeStr)
-					continue
-				}
-			}
-
-			body, _ := io.ReadAll(resp.Body)
-			log.Printf("GitHub API error (%d) for %s: %s", resp.StatusCode, source.Organization, string(body))
-			continue
-		}
-
-		// Parse the response
-		var repos []struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			HTMLURL     string `json:"html_url"`
-		}
-
-		if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
-			log.Printf("Error parsing GitHub response for %s: %v", source.Organization, err)
-			continue
-		}
-
-		// Process each repository that matches the plugin pattern
-		for _, repo := range repos {
-			// Check if repo name matches plugin pattern (e.g., "Plugin_*")
-			if !strings.HasPrefix(repo.Name, "Plugin_") {
-				continue
-			}
-
-			// Extract plugin ID from repo name (e.g., "Plugin_ping" -> "ping")
-			pluginID := strings.TrimPrefix(repo.Name, "Plugin_")
-
-			// Check if plugin directory exists locally
-			pluginDir := filepath.Join(pi.pluginsDir, pluginID)
-			if _, err := os.Stat(pluginDir); os.IsNotExist(err) {
-				// Plugin not installed, skip updating its plugin.json
-				continue
-			}
-
-			// Read existing plugin.json if it exists
-			jsonPath := filepath.Join(pluginDir, "plugin.json")
-			var pluginData map[string]interface{}
-
-			existingData, err := os.ReadFile(jsonPath)
-			if err == nil {
-				// If plugin.json exists, unmarshal it
-				if err := json.Unmarshal(existingData, &pluginData); err != nil {
-					log.Printf("Error parsing existing plugin.json for %s: %v", pluginID, err)
-					// Initialize empty map if parsing failed
-					pluginData = make(map[string]interface{})
-				}
-			} else {
-				// Initialize empty map if file doesn't exist
-				pluginData = make(map[string]interface{})
-			}
-
-			// Fetch plugin.json from GitHub to get latest metadata
-			pluginJSONURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/plugin.json",
-				source.Organization, repo.Name)
-
-			pluginResp, err := http.Get(pluginJSONURL)
-			if err == nil && pluginResp.StatusCode == http.StatusOK {
-				var remotePluginData map[string]interface{}
-
-				if err := json.NewDecoder(pluginResp.Body).Decode(&remotePluginData); err == nil {
-					// Update local plugin data with remote data
-					for key, value := range remotePluginData {
-						pluginData[key] = value
-					}
-				}
-				pluginResp.Body.Close()
-			}
-
-			// Ensure basic fields are set
-			if _, ok := pluginData["id"]; !ok {
-				pluginData["id"] = pluginID
-			}
-			if _, ok := pluginData["name"]; !ok {
-				pluginData["name"] = strings.ReplaceAll(pluginID, "_", " ")
-			}
-			if _, ok := pluginData["repository"]; !ok {
-				pluginData["repository"] = repo.HTMLURL
-			}
-			if _, ok := pluginData["description"]; !ok && repo.Description != "" {
-				pluginData["description"] = repo.Description
-			}
-			if _, ok := pluginData["author"]; !ok {
-				pluginData["author"] = source.Organization
-			}
-			if _, ok := pluginData["license"]; !ok {
-				pluginData["license"] = "GPL-3.0" // Default license
-			}
-			if _, ok := pluginData["version"]; !ok {
-				pluginData["version"] = "1.0.0" // Default version
-			}
-
-			// Write updated plugin.json
-			updatedData, err := json.MarshalIndent(pluginData, "", "  ")
-			if err != nil {
-				log.Printf("Error marshaling plugin.json for %s: %v", pluginID, err)
-				continue
-			}
-
-			if err := os.WriteFile(jsonPath, updatedData, 0600); err != nil {
-				log.Printf("Error writing plugin.json for %s: %v", pluginID, err)
-				continue
-			}
-		}
-	}
-
-	return nil
 }
 
 // Helper functions

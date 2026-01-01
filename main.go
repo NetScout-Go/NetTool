@@ -198,22 +198,22 @@ func main() {
 
 			// List available plugins from GitHub and local catalog
 			pluginManage.GET("/available", func(c *gin.Context) {
-				plugins, err := pluginInstaller.ListAvailablePlugins()
+				response, err := pluginInstaller.ListAvailablePluginsWithMeta(false)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
-				c.JSON(http.StatusOK, plugins)
+				c.JSON(http.StatusOK, response)
 			})
 
 			// Refresh plugin catalog from GitHub
 			pluginManage.POST("/refresh-catalog", func(c *gin.Context) {
-				err := pluginInstaller.RefreshPluginCatalog()
+				response, err := pluginInstaller.RefreshPluginCatalog()
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
-				c.JSON(http.StatusOK, gin.H{"message": "Plugin catalog refreshed successfully"})
+				c.JSON(http.StatusOK, response)
 			})
 
 			// Install plugin from repository
