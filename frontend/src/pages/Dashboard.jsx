@@ -4,20 +4,15 @@ import {
   Wifi, 
   WifiOff, 
   Globe, 
-  Activity, 
   Server,
-  Clock,
-  ArrowUpDown,
-  Gauge,
-  Shield,
-  HardDrive,
-  RefreshCw
+  Network,
+  Cable,
+  Router,
+  RefreshCw,
+  MonitorSmartphone,
+  Cpu
 } from 'lucide-react'
 import StatsCard from '../components/dashboard/StatsCard'
-import TrafficChart from '../components/dashboard/TrafficChart'
-import ServiceLatency from '../components/dashboard/ServiceLatency'
-import ArpTable from '../components/dashboard/ArpTable'
-import NetworkTopology from '../components/dashboard/NetworkTopology'
 import InterfaceDetails from '../components/dashboard/InterfaceDetails'
 import { networkApi } from '../api'
 
@@ -72,18 +67,15 @@ export default function Dashboard({ networkData, connected }) {
 
   const formatUptime = (seconds) => {
     if (!seconds) return '--:--:--'
-    const hours = Math.floor(seconds / 3600)
+    const days = Math.floor(seconds / 86400)
+    const hours = Math.floor((seconds % 86400) / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
     const secs = Math.floor(seconds % 60)
+    
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`
+    }
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const formatBytes = (bytes) => {
-    if (!bytes) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   const data = localData || {}
@@ -99,7 +91,7 @@ export default function Dashboard({ networkData, connected }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Network Dashboard</h1>
-          <p className="text-dark-400 mt-1">Real-time network monitoring and analysis</p>
+          <p className="text-dark-400 mt-1">Device network information</p>
         </div>
         <div className="flex items-center gap-4">
           <button
@@ -107,192 +99,258 @@ export default function Dashboard({ networkData, connected }) {
             className={`btn-secondary flex items-center gap-2 ${!autoRefresh && 'opacity-50'}`}
           >
             <RefreshCw className={`w-4 h-4 ${autoRefresh && connected && 'animate-spin'}`} />
-            {autoRefresh ? 'Auto-Refresh On' : 'Auto-Refresh Off'}
+            {autoRefresh ? 'Live' : 'Paused'}
           </button>
           {lastUpdated && (
             <span className="text-sm text-dark-400">
-              Last updated: {lastUpdated.toLocaleTimeString()}
+              {lastUpdated.toLocaleTimeString()}
             </span>
           )}
         </div>
       </div>
 
-      {/* Quick Overview Cards */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Connection Status */}
-        <StatsCard
-          title="Connection"
-          gradient="blue"
-          icon={connected ? Wifi : WifiOff}
-          badge={{ text: 'Live', variant: connected ? 'success' : 'error' }}
-        >
-          <div className="text-center mb-4">
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
-              connected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-            }`}>
-              {connected ? <Wifi className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
-              <span className="font-medium">{connected ? 'Connected' : 'Disconnected'}</span>
+      {/* Connection Status Banner */}
+      <motion.div variants={itemVariants}>
+        <div className={`glass-card p-4 border-l-4 ${connected ? 'border-l-green-500' : 'border-l-red-500'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${connected ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                {connected ? <Wifi className="w-6 h-6 text-green-400" /> : <WifiOff className="w-6 h-6 text-red-400" />}
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  {connected ? 'Connected' : 'Disconnected'}
+                </h2>
+                <p className="text-sm text-dark-400">
+                  {data.connectionType || 'Unknown'} • Uptime: {formatUptime(data.uptime)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-xs text-dark-500">Latency</p>
+                <p className={`text-xl font-bold ${
+                  data.latency < 20 ? 'text-green-400' : 
+                  data.latency < 50 ? 'text-yellow-400' : 
+                  data.latency < 100 ? 'text-orange-400' : 'text-red-400'
+                }`}>
+                  {data.latency ? `${data.latency.toFixed(1)} ms` : '-- ms'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-dark-500">Packet Loss</p>
+                <p className={`text-xl font-bold ${
+                  data.packetLoss === 0 ? 'text-green-400' : 
+                  data.packetLoss < 1 ? 'text-yellow-400' : 'text-red-400'
+                }`}>
+                  {data.packetLoss !== undefined ? `${data.packetLoss.toFixed(1)}%` : '--%'}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="stats-grid">
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Uptime</span>
-              <span className="text-sm font-semibold text-white">{formatUptime(data.uptime)}</span>
-            </div>
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Type</span>
-              <span className="text-sm font-semibold text-white truncate">{data.connectionType || '--'}</span>
-            </div>
-          </div>
-        </StatsCard>
+        </div>
+      </motion.div>
 
+      {/* Main Info Cards */}
+      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* IP Configuration */}
         <StatsCard
-          title="IP Config"
+          title="IP Configuration"
           gradient="cyan"
           icon={Globe}
-          badge={{ text: 'Live', variant: 'cyan' }}
         >
-          <div className="stats-grid">
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">IPv4</span>
-              <span className="text-sm font-semibold text-white">{data.ipv4 || '--'}</span>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-dark-800/50">
+              <span className="text-dark-400">IPv4 Address</span>
+              <span className="font-mono text-white">{data.ipv4 || '--'}</span>
             </div>
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Subnet</span>
-              <span className="text-sm font-semibold text-white">{data.subnet || '--'}</span>
+            <div className="flex justify-between items-center py-2 border-b border-dark-800/50">
+              <span className="text-dark-400">Subnet Mask</span>
+              <span className="font-mono text-white">{data.subnet || '--'}</span>
             </div>
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Gateway</span>
-              <span className="text-sm font-semibold text-white">{data.gateway || '--'}</span>
+            <div className="flex justify-between items-center py-2 border-b border-dark-800/50">
+              <span className="text-dark-400">Gateway</span>
+              <span className="font-mono text-white">{data.gateway || '--'}</span>
             </div>
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">IPv6</span>
-              <span className="text-xs font-semibold text-white truncate">{data.ipv6 || '--'}</span>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-dark-400">DHCP</span>
+              <span className={`font-semibold ${data.dhcpEnabled ? 'text-green-400' : 'text-yellow-400'}`}>
+                {data.dhcpEnabled ? 'Enabled' : 'Static'}
+              </span>
             </div>
           </div>
         </StatsCard>
 
-        {/* Connection Metrics */}
+        {/* Gateway / Router Info */}
         <StatsCard
-          title="Metrics"
-          gradient="purple"
-          icon={Activity}
-          badge={{ text: 'Live', variant: 'purple' }}
-        >
-          <div className="stats-grid">
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Latency</span>
-              <span className="text-sm font-semibold text-white">
-                {data.latency ? `${data.latency.toFixed(1)} ms` : '-- ms'}
-              </span>
-            </div>
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Packet Loss</span>
-              <span className="text-sm font-semibold text-white">
-                {data.packetLoss !== undefined ? `${data.packetLoss.toFixed(1)}%` : '--%'}
-              </span>
-            </div>
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Signal</span>
-              <span className="text-sm font-semibold text-white">
-                {data.signalStrength ? `${data.signalStrength} dBm` : '-- dBm'}
-              </span>
-            </div>
-            <div className="stat-item">
-              <span className="text-xs text-dark-400">Bandwidth</span>
-              <span className="text-sm font-semibold text-white">
-                {data.bandwidth ? `${data.bandwidth} Mbps` : '-- Mbps'}
-              </span>
-            </div>
-          </div>
-          <button className="btn-primary w-full mt-4 text-sm">
-            <Gauge className="w-4 h-4 inline mr-2" />
-            Run Speed Test
-          </button>
-        </StatsCard>
-
-        {/* DNS */}
-        <StatsCard
-          title="DNS"
+          title="Gateway / Router"
           gradient="orange"
-          icon={Server}
-          badge={{ text: 'Live', variant: 'orange' }}
+          icon={Router}
         >
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-dark-800/50">
+              <span className="text-dark-400">Gateway IP</span>
+              <span className="font-mono text-white">{data.gateway || '--'}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-dark-800/50">
+              <span className="text-dark-400">Gateway MAC</span>
+              <span className="font-mono text-xs text-white">{data.gatewayMac || '--'}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-dark-800/50">
+              <span className="text-dark-400">Gateway Latency</span>
+              <span className="font-semibold text-white">
+                {data.gatewayLatency ? `${data.gatewayLatency.toFixed(1)} ms` : '-- ms'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-dark-400">Hops to Internet</span>
+              <span className="font-semibold text-white">{data.hopsToInternet || '--'}</span>
+            </div>
+          </div>
+        </StatsCard>
+
+        {/* DNS Servers */}
+        <StatsCard
+          title="DNS Servers"
+          gradient="purple"
+          icon={Server}
+        >
+          <div className="space-y-3">
             {data.dnsServers && data.dnsServers.length > 0 ? (
               data.dnsServers.slice(0, 4).map((dns, index) => (
-                <div key={index} className="stat-item">
-                  <span className="text-xs text-dark-400">DNS {index + 1}</span>
-                  <span className="text-sm font-semibold text-white">{dns}</span>
+                <div key={index} className="flex justify-between items-center py-2 border-b border-dark-800/50 last:border-0">
+                  <span className="text-dark-400">DNS {index + 1}</span>
+                  <span className="font-mono text-white">{dns}</span>
                 </div>
               ))
             ) : (
-              <div className="text-center py-4 text-dark-400">
-                No DNS servers found
+              <div className="text-center py-6 text-dark-400">
+                <Server className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No DNS servers configured</p>
               </div>
             )}
           </div>
         </StatsCard>
       </motion.div>
 
-      {/* Traffic Chart */}
+      {/* Interface Details */}
       <motion.div variants={itemVariants}>
-        <TrafficChart data={data} />
+        <InterfaceDetails data={data} />
       </motion.div>
 
-      {/* Network Details Grid */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <InterfaceDetails data={data} />
-        
-        {/* Traffic Stats */}
-        <div className="glass-card gradient-purple p-6">
+      {/* Network Interface Card */}
+      <motion.div variants={itemVariants}>
+        <div className="glass-card gradient-blue p-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 rounded-lg bg-purple-500/20">
-              <ArrowUpDown className="w-5 h-5 text-purple-400" />
+            <div className="p-2 rounded-lg bg-blue-500/20">
+              <Cable className="w-5 h-5 text-blue-400" />
             </div>
-            <h3 className="text-lg font-semibold text-white">Traffic Statistics</h3>
+            <h3 className="text-lg font-semibold text-white">Network Interface</h3>
           </div>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-3 border-b border-dark-800/50">
-              <span className="text-dark-400">Bytes Received</span>
-              <span className="font-semibold text-white">{formatBytes(data.bytesReceived)}</span>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide">Interface Name</p>
+              <p className="text-lg font-semibold text-white">{data.interfaceName || '--'}</p>
             </div>
-            <div className="flex justify-between items-center py-3 border-b border-dark-800/50">
-              <span className="text-dark-400">Bytes Sent</span>
-              <span className="font-semibold text-white">{formatBytes(data.bytesSent)}</span>
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide">MAC Address</p>
+              <p className="text-lg font-mono text-white">{data.macAddress || '--'}</p>
             </div>
-            <div className="flex justify-between items-center py-3 border-b border-dark-800/50">
-              <span className="text-dark-400">Packets Received</span>
-              <span className="font-semibold text-white">{data.packetsReceived?.toLocaleString() || '--'}</span>
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide">Link Speed</p>
+              <p className="text-lg font-semibold text-white">{data.linkSpeed || '--'}</p>
             </div>
-            <div className="flex justify-between items-center py-3 border-b border-dark-800/50">
-              <span className="text-dark-400">Packets Sent</span>
-              <span className="font-semibold text-white">{data.packetsSent?.toLocaleString() || '--'}</span>
-            </div>
-            <div className="flex justify-between items-center py-3 border-b border-dark-800/50">
-              <span className="text-dark-400">DHCP Status</span>
-              <span className={`font-semibold ${data.dhcpEnabled ? 'text-green-400' : 'text-yellow-400'}`}>
-                {data.dhcpEnabled ? 'Enabled' : 'Disabled'}
-              </span>
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide">MTU</p>
+              <p className="text-lg font-semibold text-white">{data.mtu || '--'}</p>
             </div>
           </div>
+
+          {/* IPv6 Section */}
+          {data.ipv6 && (
+            <div className="mt-6 pt-6 border-t border-dark-800/50">
+              <div className="space-y-1">
+                <p className="text-xs text-dark-500 uppercase tracking-wide">IPv6 Address</p>
+                <p className="text-sm font-mono text-dark-300 break-all">{data.ipv6}</p>
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
 
-      {/* Service Latency */}
+      {/* Connection Path Visualization */}
       <motion.div variants={itemVariants}>
-        <ServiceLatency data={data.serviceLatency} />
-      </motion.div>
+        <div className="glass-card p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 rounded-lg bg-primary-500/20">
+              <Network className="w-5 h-5 text-primary-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-white">Connection Path</h3>
+          </div>
+          
+          <div className="flex items-center justify-center gap-4 py-8 overflow-x-auto">
+            {/* This Device */}
+            <div className="flex flex-col items-center min-w-[100px]">
+              <div className="w-16 h-16 rounded-xl bg-primary-500/20 flex items-center justify-center mb-2">
+                <MonitorSmartphone className="w-8 h-8 text-primary-400" />
+              </div>
+              <p className="text-sm font-medium text-white">This Device</p>
+              <p className="text-xs text-dark-400 font-mono">{data.ipv4 || '--'}</p>
+            </div>
 
-      {/* ARP Table */}
-      <motion.div variants={itemVariants}>
-        <ArpTable entries={data.arpTable} />
-      </motion.div>
+            {/* Connection Line */}
+            <div className="flex items-center">
+              <div className="w-8 h-0.5 bg-dark-700"></div>
+              <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <div className="w-8 h-0.5 bg-dark-700"></div>
+            </div>
 
-      {/* Network Topology */}
-      <motion.div variants={itemVariants}>
-        <NetworkTopology data={data} />
+            {/* Switch (if detected) */}
+            {data.switchDetected && (
+              <>
+                <div className="flex flex-col items-center min-w-[100px]">
+                  <div className="w-16 h-16 rounded-xl bg-cyan-500/20 flex items-center justify-center mb-2">
+                    <Cpu className="w-8 h-8 text-cyan-400" />
+                  </div>
+                  <p className="text-sm font-medium text-white">Switch</p>
+                  <p className="text-xs text-dark-400">Port {data.switchPort || '?'}</p>
+                </div>
+
+                <div className="flex items-center">
+                  <div className="w-8 h-0.5 bg-dark-700"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <div className="w-8 h-0.5 bg-dark-700"></div>
+                </div>
+              </>
+            )}
+
+            {/* Gateway/Router */}
+            <div className="flex flex-col items-center min-w-[100px]">
+              <div className="w-16 h-16 rounded-xl bg-orange-500/20 flex items-center justify-center mb-2">
+                <Router className="w-8 h-8 text-orange-400" />
+              </div>
+              <p className="text-sm font-medium text-white">Gateway</p>
+              <p className="text-xs text-dark-400 font-mono">{data.gateway || '--'}</p>
+            </div>
+
+            {/* Connection Line */}
+            <div className="flex items-center">
+              <div className="w-8 h-0.5 bg-dark-700"></div>
+              <div className={`w-3 h-3 rounded-full ${data.latency ? 'bg-green-500' : 'bg-dark-600'}`}></div>
+              <div className="w-8 h-0.5 bg-dark-700"></div>
+            </div>
+
+            {/* Internet */}
+            <div className="flex flex-col items-center min-w-[100px]">
+              <div className="w-16 h-16 rounded-xl bg-purple-500/20 flex items-center justify-center mb-2">
+                <Globe className="w-8 h-8 text-purple-400" />
+              </div>
+              <p className="text-sm font-medium text-white">Internet</p>
+              <p className="text-xs text-dark-400">{data.latency ? `${data.latency.toFixed(0)}ms` : '--'}</p>
+            </div>
+          </div>
+        </div>
       </motion.div>
     </motion.div>
   )
