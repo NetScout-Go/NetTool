@@ -117,15 +117,15 @@ jobs:
 
       - name: Prepare package
         run: |
-          mkdir -p package/frontend
+          mkdir -p package/frontend/dist
           mkdir -p package/app/plugins/plugins
           
           # Copy binaries
           cp nettool package/
           cp nettool-iterate package/
           
-          # Copy frontend
-          cp -r frontend/dist/* package/frontend/
+          # Copy frontend (must be in frontend/dist for the server)
+          cp -r frontend/dist/* package/frontend/dist/
           
           # Copy plugin config
           cp app/plugins/config.json.example package/app/plugins/
