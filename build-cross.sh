@@ -79,10 +79,10 @@ for target in "${TARGETS[@]}"; do
         -o "$TARGET_DIR/nettool-iterate" \
         ./app/cmd/iterate/main.go
     
-    # Copy assets
-    cp -r app/static "$TARGET_DIR/"
-    cp -r app/templates "$TARGET_DIR/"
-    mkdir -p "$TARGET_DIR/app/plugins"
+    # Copy React frontend
+    mkdir -p "$TARGET_DIR/frontend/dist"
+    cp -r frontend/dist/* "$TARGET_DIR/frontend/dist/" 2>/dev/null || echo "Frontend not built"
+    mkdir -p "$TARGET_DIR/app/plugins/plugins"
     cp app/plugins/config.json.example "$TARGET_DIR/app/plugins/"
     cp README.md "$TARGET_DIR/" 2>/dev/null || echo "README.md not found"
     

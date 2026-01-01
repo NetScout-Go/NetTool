@@ -85,9 +85,8 @@ fi
 
 # Copy essential files
 echo -e "${YELLOW}📂 Copying essential files...${NC}"
-mkdir -p $BUILD_DIR/app
-cp -r app/static $BUILD_DIR/app/
-cp -r app/templates $BUILD_DIR/app/
+mkdir -p $BUILD_DIR/frontend
+cp -r frontend/dist/* $BUILD_DIR/frontend/ 2>/dev/null || echo "Frontend not built, run 'npm run build' in frontend/ first"
 mkdir -p $BUILD_DIR/app/plugins/plugins
 cp app/plugins/config.json.example $BUILD_DIR/app/plugins/
 cp app/plugins/config.json $BUILD_DIR/app/plugins/ 2>/dev/null || echo "config.json not found, using example"
@@ -322,8 +321,7 @@ This package contains optimized Linux binaries for NetTool.
 
 - \`nettool\` - Main NetTool web server
 - \`nettool-iterate\` - CLI tool for automated plugin execution
-- \`static/\` - Web UI assets
-- \`templates/\` - HTML templates
+- \`frontend/dist/\` - React web UI (built)
 - \`app/plugins/\` - Plugin configuration
 - \`nettool.service\` - Systemd service file
 - \`install.sh\` - Automatic installation script

@@ -17,6 +17,9 @@ This document serves as the living specification for the NetTool project. It def
 - ✅ Backend plugin execution with progress reporting (`execution.go`)
 - ✅ WebSocket streaming for plugin execution (`streaming.go`)
 - ✅ Frontend streaming hook (`usePluginStream.js`)
+- ✅ Dark theme with orange accent color scheme
+- ✅ Plugin catalog caching to avoid GitHub API rate limits
+- ✅ Removed legacy static dashboard (now fully React-based)
 
 ---
 
@@ -592,17 +595,39 @@ npm run test:coverage
 
 ## Deployment
 
-### Build Commands
+### GitHub Actions Build
 
+The project uses GitHub Actions for automated builds. Releases are created automatically when pushing a version tag.
+
+**Supported platforms:**
+- Linux x64 (amd64)
+- Linux x32 (386)
+- Linux Pi Zero (ARMv6)
+
+**To create a release:**
 ```bash
-# Backend
-go build -ldflags "-X main.Version=1.0.0 -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o nettool
+# Tag and push
+git tag v1.0.0
+git push origin v1.0.0
+```
 
-# Frontend
-cd frontend && npm run build
+**Manual build (local):**
+```bash
+# Build frontend
+cd frontend && npm ci && npm run build && cd ..
 
-# Combined
-./build.sh
+# Build backend
+go build -ldflags "-w -s" -o nettool ./main.go
+go build -ldflags "-w -s" -o nettool-iterate ./app/cmd/iterate/main.go
+```
+
+### Installation
+
+Download the release archive for your platform and run:
+```bash
+tar -xzf nettool-linux-*.tar.gz
+cd nettool-*
+sudo ./install.sh
 ```
 
 ### Systemd Service
