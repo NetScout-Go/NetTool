@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Settings, 
@@ -14,7 +14,10 @@ import {
   Github,
   Tag,
   User,
-  Database
+  Database,
+  CheckSquare,
+  Square,
+  Layers
 } from 'lucide-react'
 import { pluginManagerApi } from '../api'
 
@@ -27,6 +30,20 @@ export default function PluginManager() {
   const [activeTab, setActiveTab] = useState('available')
   const [error, setError] = useState(null)
   const [actionLoading, setActionLoading] = useState({})
+  const [selectedPlugins, setSelectedPlugins] = useState(new Set())
+  const [isMultiInstalling, setIsMultiInstalling] = useState(false)
+
+  // Helper to get property with fallback for both casing styles
+  const getPluginProp = (plugin, prop) => {
+    // Try lowercase first (API returns), then PascalCase
+    return plugin[prop] || plugin[prop.charAt(0).toUpperCase() + prop.slice(1)]
+  }
+
+  // Get plugin repository
+  const getPluginRepository = (plugin) => getPluginProp(plugin, 'repository')
+  
+  // Check if plugin is installed
+  const isInstalled = (plugin) => plugin.installed || plugin.Installed
 
   useEffect(() => {
     loadPlugins()
@@ -67,6 +84,12 @@ export default function PluginManager() {
     try {
       await pluginManagerApi.install(repository)
       await loadPlugins()
+      // Remove from selection after successful install
+      setSelectedPlugins(prev => {
+        const next = new Set(prev)
+        next.delete(repository)
+        return next
+      })
     } catch (err) {
       console.error('Failed to install plugin:', err)
       setError('Failed to install plugin: ' + (err.message || 'Unknown error'))
@@ -74,6 +97,70 @@ export default function PluginManager() {
       setActionLoading(prev => ({ ...prev, [repository]: false }))
     }
   }
+
+  // Multi-install handler
+  const handleInstallSelected = async () => {
+    if (selectedPlugins.size === 0) return
+    
+    setIsMultiInstalling(true)
+    const repositories = Array.from(selectedPlugins)
+    const errors = []
+    
+    for (const repository of repositories) {
+      setActionLoading(prev => ({ ...prev, [repository]: true }))
+      try {
+        await pluginManagerApi.install(repository)
+      } catch (err) {
+        console.error(`Failed to install ${repository}:`, err)
+        errors.push(`${repository}: ${err.message || 'Unknown error'}`)
+      } finally {
+        setActionLoading(prev => ({ ...prev, [repository]: false }))
+      }
+    }
+    
+    // Reload plugins and clear selection
+    await loadPlugins()
+    setSelectedPlugins(new Set())
+    setIsMultiInstalling(false)
+    
+    if (errors.length > 0) {
+      setError(`Some plugins failed to install:\n${errors.join('\n')}`)
+    }
+  }
+
+  // Toggle plugin selection
+  const togglePluginSelection = (repository) => {
+    setSelectedPlugins(prev => {
+      const next = new Set(prev)
+      if (next.has(repository)) {
+        next.delete(repository)
+      } else {
+        next.add(repository)
+      }
+      return next
+    })
+  }
+
+  // Get available (not installed) plugins
+  const availableNotInstalled = useMemo(() => 
+    availablePlugins.filter(p => !isInstalled(p)),
+    [availablePlugins]
+  )
+
+  // Select/deselect all available plugins
+  const toggleSelectAll = () => {
+    if (selectedPlugins.size === availableNotInstalled.length) {
+      setSelectedPlugins(new Set())
+    } else {
+      const allRepos = availableNotInstalled
+        .map(p => getPluginRepository(p))
+        .filter(Boolean)
+      setSelectedPlugins(new Set(allRepos))
+    }
+  }
+
+  const allSelected = availableNotInstalled.length > 0 && 
+    selectedPlugins.size === availableNotInstalled.length
 
   const handleUpdate = async (id) => {
     setActionLoading(prev => ({ ...prev, [id]: true }))
@@ -106,7 +193,6 @@ export default function PluginManager() {
     setError(null)
     try {
       const response = await pluginManagerApi.refreshCatalog()
-      // Update with fresh data from the response
       if (response.data?.plugins) {
         setAvailablePlugins(response.data.plugins || [])
         setLastUpdated(response.data.lastUpdated ? new Date(response.data.lastUpdated * 1000) : new Date())
@@ -122,7 +208,6 @@ export default function PluginManager() {
     }
   }
 
-  // Format the last updated date
   const formatLastUpdated = () => {
     if (!lastUpdated) return null
     const now = new Date()
@@ -138,17 +223,10 @@ export default function PluginManager() {
     return lastUpdated.toLocaleDateString()
   }
 
-  // Helper to get property with fallback for both casing styles
-  const getPluginProp = (plugin, prop) => {
-    // Try lowercase first (API returns), then PascalCase
-    return plugin[prop] || plugin[prop.charAt(0).toUpperCase() + prop.slice(1)]
-  }
-
   // Format plugin name from ID
   const formatPluginName = (plugin) => {
     const name = getPluginProp(plugin, 'name')
     if (name && name !== getPluginProp(plugin, 'id')) return name
-    // Convert plugin_name or Plugin_name to "Plugin Name"
     const id = getPluginProp(plugin, 'id') || 'Unknown Plugin'
     return id
       .replace(/^Plugin_/, '')
@@ -156,33 +234,11 @@ export default function PluginManager() {
       .replace(/\b\w/g, c => c.toUpperCase())
   }
 
-  // Get plugin ID
   const getPluginId = (plugin) => getPluginProp(plugin, 'id')
-  
-  // Get plugin description
   const getPluginDescription = (plugin) => getPluginProp(plugin, 'description') || 'No description available'
-  
-  // Get plugin version
   const getPluginVersion = (plugin) => getPluginProp(plugin, 'version') || '1.0.0'
-  
-  // Get plugin author
   const getPluginAuthor = (plugin) => getPluginProp(plugin, 'author')
-  
-  // Get plugin repository
-  const getPluginRepository = (plugin) => getPluginProp(plugin, 'repository')
-  
-  // Check if plugin is installed
-  const isInstalled = (plugin) => plugin.installed || plugin.Installed
-  
-  // Check if update available
   const hasUpdate = (plugin) => plugin.updateAvailable || plugin.UpdateAvailable
-
-  // Get repository name from URL
-  const getRepoName = (url) => {
-    if (!url) return null
-    const parts = url.split('/')
-    return parts[parts.length - 1] || parts[parts.length - 2]
-  }
 
   return (
     <div className="space-y-6">
@@ -224,7 +280,7 @@ export default function PluginManager() {
               : 'text-dark-400 hover:text-white'
           }`}
         >
-          Available ({availablePlugins.filter(p => !isInstalled(p)).length})
+          Available ({availableNotInstalled.length})
         </button>
         <button
           onClick={() => setActiveTab('installed')}
@@ -238,11 +294,56 @@ export default function PluginManager() {
         </button>
       </div>
 
+      {/* Multi-select toolbar - only show when on available tab */}
+      {activeTab === 'available' && availableNotInstalled.length > 0 && (
+        <div className="flex items-center justify-between p-3 bg-dark-900/50 rounded-xl border border-dark-700/50">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:bg-dark-700/50 text-dark-300 hover:text-white"
+            >
+              {allSelected ? (
+                <CheckSquare className="w-4 h-4 text-primary-400" />
+              ) : (
+                <Square className="w-4 h-4" />
+              )}
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
+            
+            {selectedPlugins.size > 0 && (
+              <span className="text-sm text-dark-400">
+                {selectedPlugins.size} plugin{selectedPlugins.size !== 1 ? 's' : ''} selected
+              </span>
+            )}
+          </div>
+          
+          {selectedPlugins.size > 0 && (
+            <button
+              onClick={handleInstallSelected}
+              disabled={isMultiInstalling}
+              className="btn-primary flex items-center gap-2"
+            >
+              {isMultiInstalling ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Installing...
+                </>
+              ) : (
+                <>
+                  <Layers className="w-4 h-4" />
+                  Install Selected ({selectedPlugins.size})
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <div className="flex items-center gap-3 p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <span className="flex-1">{error}</span>
+          <span className="flex-1 whitespace-pre-wrap">{error}</span>
           <button onClick={() => setError(null)} className="text-red-300 hover:text-white">
             <X className="w-4 h-4" />
           </button>
@@ -336,13 +437,14 @@ export default function PluginManager() {
           {/* Available Plugins */}
           {activeTab === 'available' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {availablePlugins.filter(p => !isInstalled(p)).length > 0 ? (
-                availablePlugins.filter(p => !isInstalled(p)).map((plugin, index) => {
+              {availableNotInstalled.length > 0 ? (
+                availableNotInstalled.map((plugin, index) => {
                   const pluginId = getPluginId(plugin)
                   const repository = getPluginRepository(plugin)
                   const author = getPluginAuthor(plugin)
                   const category = getPluginProp(plugin, 'category')
                   const tags = plugin.tags || plugin.Tags || []
+                  const isSelected = repository && selectedPlugins.has(repository)
                   
                   return (
                     <motion.div
@@ -350,12 +452,28 @@ export default function PluginManager() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="glass-card p-5 hover:border-primary-500/30 transition-colors"
+                      className={`glass-card p-5 transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'border-primary-500/50 bg-primary-500/5' 
+                          : 'hover:border-primary-500/30'
+                      }`}
+                      onClick={() => repository && togglePluginSelection(repository)}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-dark-700/50 flex items-center justify-center">
-                            <Package className="w-5 h-5 text-dark-300" />
+                          {/* Selection checkbox */}
+                          <div 
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                              isSelected 
+                                ? 'bg-primary-500/20' 
+                                : 'bg-dark-700/50'
+                            }`}
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="w-5 h-5 text-primary-400" />
+                            ) : (
+                              <Package className="w-5 h-5 text-dark-300" />
+                            )}
                           </div>
                           <div>
                             <h3 className="font-semibold text-white">{formatPluginName(plugin)}</h3>
@@ -395,7 +513,7 @@ export default function PluginManager() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                         <button
                           onClick={() => handleInstall(repository)}
                           disabled={actionLoading[repository] || !repository}

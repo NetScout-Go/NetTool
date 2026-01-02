@@ -108,12 +108,13 @@ jobs:
           LDFLAGS="$LDFLAGS -X main.Version=${{ steps.version.outputs.version }}"
           LDFLAGS="$LDFLAGS -X main.BuildTime=${{ steps.version.outputs.build_time }}"
           LDFLAGS="$LDFLAGS -X main.GitCommit=${{ steps.version.outputs.commit }}"
+          LDFLAGS="$LDFLAGS -X github.com/gin-gonic/gin.Mode=release"
           
-          echo "Building NetTool for ${{ matrix.name }}..."
-          go build -ldflags "$LDFLAGS" -o nettool ./main.go
+          echo "Building NetTool for ${{ matrix.name }} (release mode)..."
+          go build -ldflags "$LDFLAGS" -trimpath -o nettool ./main.go
           
           echo "Building CLI tool..."
-          go build -ldflags "$LDFLAGS" -o nettool-iterate ./app/cmd/iterate/main.go
+          go build -ldflags "$LDFLAGS" -trimpath -o nettool-iterate ./app/cmd/iterate/main.go
 
       - name: Prepare package
         run: |

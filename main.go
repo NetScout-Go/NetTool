@@ -65,6 +65,9 @@ func main() {
 	// Ensure plugin directories exist
 	os.MkdirAll("app/plugins/plugins", 0700)
 
+	// Set Gin to release mode for cleaner output
+	gin.SetMode(gin.ReleaseMode)
+
 	// Initialize the router
 	r := gin.Default()
 
@@ -437,10 +440,11 @@ func main() {
 	// Serve React SPA - this must be registered AFTER all API routes
 	serveSPA(r)
 
-	// Start the server
-	log.Printf("Starting NetTool server on :%d", *port)
-	log.Printf("Open http://localhost:%d in your browser", *port)
-	log.Fatal(r.Run(fmt.Sprintf(":%d", *port)))
+	// Start the server - bind to all interfaces (0.0.0.0)
+	log.Printf("🚀 Starting NetTool server on 0.0.0.0:%d", *port)
+	log.Printf("📱 Access locally: http://localhost:%d", *port)
+	log.Printf("🌐 Access from network: http://<your-ip>:%d", *port)
+	log.Fatal(r.Run(fmt.Sprintf("0.0.0.0:%d", *port)))
 }
 
 // Clients map to manage WebSocket connections
