@@ -17,7 +17,10 @@ import {
   Database,
   CheckSquare,
   Square,
-  Layers
+  Layers,
+  Zap,
+  GitBranch,
+  Code
 } from 'lucide-react'
 import { pluginManagerApi } from '../api'
 
@@ -32,6 +35,7 @@ export default function PluginManager() {
   const [actionLoading, setActionLoading] = useState({})
   const [selectedPlugins, setSelectedPlugins] = useState(new Set())
   const [isMultiInstalling, setIsMultiInstalling] = useState(false)
+  const [releaseChannel, setReleaseChannel] = useState('stable') // 'stable', 'beta', or 'source'
 
   // Helper to get property with fallback for both casing styles
   const getPluginProp = (plugin, prop) => {
@@ -82,7 +86,7 @@ export default function PluginManager() {
   const handleInstall = async (repository) => {
     setActionLoading(prev => ({ ...prev, [repository]: true }))
     try {
-      await pluginManagerApi.install(repository)
+      await pluginManagerApi.install(repository, releaseChannel)
       await loadPlugins()
       // Remove from selection after successful install
       setSelectedPlugins(prev => {
@@ -109,7 +113,7 @@ export default function PluginManager() {
     for (const repository of repositories) {
       setActionLoading(prev => ({ ...prev, [repository]: true }))
       try {
-        await pluginManagerApi.install(repository)
+        await pluginManagerApi.install(repository, releaseChannel)
       } catch (err) {
         console.error(`Failed to install ${repository}:`, err)
         errors.push(`${repository}: ${err.message || 'Unknown error'}`)
@@ -259,6 +263,45 @@ export default function PluginManager() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Release Channel Selector */}
+          <div className="flex items-center gap-2 bg-dark-900/50 rounded-lg p-1">
+            <button
+              onClick={() => setReleaseChannel('stable')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                releaseChannel === 'stable'
+                  ? 'bg-green-500/20 text-green-400'
+                  : 'text-dark-400 hover:text-white'
+              }`}
+              title="Install from stable releases (recommended)"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              Stable
+            </button>
+            <button
+              onClick={() => setReleaseChannel('beta')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                releaseChannel === 'beta'
+                  ? 'bg-yellow-500/20 text-yellow-400'
+                  : 'text-dark-400 hover:text-white'
+              }`}
+              title="Install from beta releases (latest features, may be unstable)"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Beta
+            </button>
+            <button
+              onClick={() => setReleaseChannel('source')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                releaseChannel === 'source'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'text-dark-400 hover:text-white'
+              }`}
+              title="Clone from source and compile locally"
+            >
+              <Code className="w-3.5 h-3.5" />
+              Source
+            </button>
+          </div>
           <button
             onClick={handleRefreshCatalog}
             disabled={actionLoading.refresh}

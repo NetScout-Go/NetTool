@@ -123,15 +123,31 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 		pluginDir := filepath.Join(p.pluginsDir, entry.Name())
 		pluginJSONPath := filepath.Join(pluginDir, "plugin.json")
 		pluginGoPath := filepath.Join(pluginDir, "plugin.go")
+		prebuiltMarker := filepath.Join(pluginDir, ".prebuilt")
 
-		// Check if plugin.json exists
+		// Check if plugin.json exists (required for all plugins)
 		if _, err := os.Stat(pluginJSONPath); os.IsNotExist(err) {
 			continue
 		}
 
-		// Check if plugin.go exists
-		if _, err := os.Stat(pluginGoPath); os.IsNotExist(err) {
-			continue
+		// Check if this is a pre-built plugin (has .prebuilt marker or binary but no plugin.go)
+		isPrebuilt := false
+		if _, err := os.Stat(prebuiltMarker); !os.IsNotExist(err) {
+			isPrebuilt = true
+		} else if _, err := os.Stat(pluginGoPath); os.IsNotExist(err) {
+			// No plugin.go - check if there's a binary with the plugin ID name
+			pluginID := entry.Name()
+			binaryPath := filepath.Join(pluginDir, pluginID)
+			if _, err := os.Stat(binaryPath); !os.IsNotExist(err) {
+				isPrebuilt = true
+			}
+		}
+
+		// For non-prebuilt plugins, plugin.go must exist
+		if !isPrebuilt {
+			if _, err := os.Stat(pluginGoPath); os.IsNotExist(err) {
+				continue
+			}
 		}
 
 		// Read plugin.json
@@ -154,26 +170,38 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 		}
 
 		pluginID := pluginDef.ID
-		fmt.Printf("Registering plugin from filesystem: %s\n", pluginID)
+		if isPrebuilt {
+			fmt.Printf("Registering pre-built plugin from filesystem: %s\n", pluginID)
+		} else {
+			fmt.Printf("Registering plugin from filesystem: %s\n", pluginID)
+		}
 
-		// Create a wrapper execution function that dynamically imports and executes the plugin
-		p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {
-			// Try to build and load the plugin dynamically
-			pluginInstance, err := p.loadPlugin(pluginDir, pluginID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load plugin %s: %v", pluginID, err)
+		// Create execution function based on plugin type
+		if isPrebuilt {
+			// For pre-built plugins, execute the binary directly
+			binaryPath := filepath.Join(pluginDir, pluginID)
+			p.pluginExecuteFuncs[pluginID] = createPrebuiltExecuteFunc(binaryPath, pluginID)
+		} else {
+			// For source plugins, dynamically build and load
+			capturedPluginDir := pluginDir
+			capturedPluginID := pluginID
+			p.pluginExecuteFuncs[pluginID] = func(params map[string]interface{}) (interface{}, error) {
+				// Try to build and load the plugin dynamically
+				pluginInstance, err := p.loadPlugin(capturedPluginDir, capturedPluginID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to load plugin %s: %v", capturedPluginID, err)
+				}
+
+				// Execute the plugin
+				return pluginInstance.Execute(params)
 			}
-
-			// Execute the plugin
-			return pluginInstance.Execute(params)
 		}
 
 		// Register with the registry
 		registry.RegisterPluginFunc(pluginID, p.pluginExecuteFuncs[pluginID])
 
-		// Also register the plugin execution functions from the helper
-		// Skip override for plugins that have proper standalone implementations
-		if pluginID != "dns_lookup" {
+		// For source plugins, also try to register the helper functions
+		if !isPrebuilt && pluginID != "dns_lookup" {
 			if helperFunc, err := LoadPluginFunc(pluginDir, pluginID); err == nil {
 				// Override with the helper function if available
 				registry.RegisterPluginFunc(pluginID, helperFunc)
@@ -182,6 +210,36 @@ func (p *PluginLoader) LoadPlugins() ([]types.Plugin, error) {
 	}
 
 	return p.plugins, nil
+}
+
+// createPrebuiltExecuteFunc creates an execution function for a pre-built binary plugin
+func createPrebuiltExecuteFunc(binaryPath, pluginID string) func(map[string]interface{}) (interface{}, error) {
+	return func(params map[string]interface{}) (interface{}, error) {
+		// Convert parameters to JSON
+		paramsJSON, err := json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal parameters: %v", err)
+		}
+
+		// Execute the binary with the --execute flag
+		cmd := exec.Command(binaryPath, "--execute="+string(paramsJSON))
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute plugin %s: %v\nOutput: %s", pluginID, err, string(output))
+		}
+
+		// Try to parse the output as JSON
+		var result interface{}
+		if err := json.Unmarshal(output, &result); err != nil {
+			// If not valid JSON, return as string
+			return map[string]interface{}{
+				"result": string(output),
+				"params": params,
+			}, nil
+		}
+
+		return result, nil
+	}
 }
 
 // loadPlugin loads a plugin from the given directory

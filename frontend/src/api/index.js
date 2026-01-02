@@ -124,11 +124,12 @@ export const pluginManagerApi = {
   // Refresh plugin catalog from GitHub
   refreshCatalog: () => api.post('/plugins/manage/refresh-catalog'),
   
-  // Install plugin from repository
-  install: (repository) => api.post('/plugins/manage/install', { repository }),
+  // Install plugin from repository with channel selection
+  // channel: 'stable' (default), 'beta', or 'source'
+  install: (repository, channel = 'stable') => api.post('/plugins/manage/install', { repository, channel }),
   
-  // Bulk install multiple plugins
-  bulkInstall: (repositories) => api.post('/plugins/manage/bulk-install', { repositories }),
+  // Bulk install multiple plugins with channel selection
+  bulkInstall: (repositories, channel = 'stable') => api.post('/plugins/manage/bulk-install', { repositories, channel }),
   
   // Update a specific plugin
   update: (id) => api.post(`/plugins/manage/update/${id}`),

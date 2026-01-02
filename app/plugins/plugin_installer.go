@@ -1709,10 +1709,17 @@ type BulkInstallResponse struct {
 	SuccessCount   int                 `json:"successCount"`
 	FailureCount   int                 `json:"failureCount"`
 	OverallSuccess bool                `json:"overallSuccess"`
+	Channel        string              `json:"channel,omitempty"`
 }
 
 // BulkInstallPlugins installs multiple plugins from a list of repositories
+// Deprecated: Use BulkInstallPluginsWithChannel instead
 func (pi *PluginInstaller) BulkInstallPlugins(repositories []string) BulkInstallResponse {
+	return pi.BulkInstallPluginsWithChannel(repositories, ReleaseChannelStable)
+}
+
+// BulkInstallPluginsWithChannel installs multiple plugins from a list of repositories using the specified channel
+func (pi *PluginInstaller) BulkInstallPluginsWithChannel(repositories []string, channel ReleaseChannel) BulkInstallResponse {
 	results := make([]BulkInstallResult, 0, len(repositories))
 	successCount := 0
 	failureCount := 0
@@ -1722,7 +1729,32 @@ func (pi *PluginInstaller) BulkInstallPlugins(repositories []string) BulkInstall
 			PluginID: extractPluginIDFromRepo(repo),
 		}
 
-		plugin, err := pi.InstallPlugin(repo)
+		// Extract org and repo name from the URL
+		parts := strings.Split(repo, "/")
+		var org, repoName string
+		for i, part := range parts {
+			if part == "github.com" && i+2 < len(parts) {
+				org = parts[i+1]
+				repoName = parts[i+2]
+				break
+			}
+		}
+
+		if org == "" || repoName == "" {
+			// Fallback: use last two parts
+			if len(parts) >= 2 {
+				org = parts[len(parts)-2]
+				repoName = parts[len(parts)-1]
+			}
+		}
+
+		// Remove .git suffix if present
+		if strings.HasSuffix(repoName, ".git") {
+			repoName = repoName[:len(repoName)-4]
+		}
+
+		// Install using the channel-aware method
+		plugin, err := pi.InstallFromGitHubWithChannel(org, repoName, channel)
 		if err != nil {
 			result.Success = false
 			result.Error = err.Error()
@@ -1742,6 +1774,7 @@ func (pi *PluginInstaller) BulkInstallPlugins(repositories []string) BulkInstall
 		SuccessCount:   successCount,
 		FailureCount:   failureCount,
 		OverallSuccess: failureCount == 0,
+		Channel:        string(channel),
 	}
 }
 
@@ -2003,8 +2036,30 @@ func (pi *PluginInstaller) extractTarGz(reader io.Reader, destDir string) error 
 	return nil
 }
 
+// ReleaseChannel represents the type of release to download
+type ReleaseChannel string
+
+const (
+	// ReleaseChannelStable is for stable releases (tagged versions)
+	ReleaseChannelStable ReleaseChannel = "stable"
+	// ReleaseChannelBeta is for beta releases (pre-release builds)
+	ReleaseChannelBeta ReleaseChannel = "beta"
+	// ReleaseChannelSource installs from source code
+	ReleaseChannelSource ReleaseChannel = "source"
+)
+
 // InstallFromGitHubWithBinary installs a plugin, preferring pre-built binaries
+// Deprecated: Use InstallFromGitHubWithChannel instead
 func (pi *PluginInstaller) InstallFromGitHubWithBinary(org string, repo string, useBeta bool) (PluginMetadata, error) {
+	channel := ReleaseChannelStable
+	if useBeta {
+		channel = ReleaseChannelBeta
+	}
+	return pi.InstallFromGitHubWithChannel(org, repo, channel)
+}
+
+// InstallFromGitHubWithChannel installs a plugin using the specified release channel
+func (pi *PluginInstaller) InstallFromGitHubWithChannel(org string, repo string, channel ReleaseChannel) (PluginMetadata, error) {
 	// Extract plugin ID from repo name
 	pluginID := repo
 	if strings.HasPrefix(repo, "Plugin_") {
@@ -2017,18 +2072,26 @@ func (pi *PluginInstaller) InstallFromGitHubWithBinary(org string, repo string, 
 		return PluginMetadata{}, fmt.Errorf("plugin with ID %s already exists", pluginID)
 	}
 
+	// Source channel always clones from GitHub
+	if channel == ReleaseChannelSource {
+		return pi.InstallFromGitHub(org, repo, "main")
+	}
+
 	// Try to download pre-built binary first
+	useBeta := channel == ReleaseChannelBeta
 	err := pi.downloadPrebuiltBinary(org, repo, pluginID, useBeta)
 	if err != nil {
-		log.Printf("Pre-built binary not available: %v", err)
+		log.Printf("Pre-built binary not available for %s channel: %v", channel, err)
 		log.Printf("Falling back to source installation...")
 
 		// Fall back to cloning from GitHub
-		branch := "main"
-		if useBeta {
-			branch = "main" // Beta still uses main branch, just different release
-		}
-		return pi.InstallFromGitHub(org, repo, branch)
+		return pi.InstallFromGitHub(org, repo, "main")
+	}
+
+	// Mark plugin as pre-built (no plugin.go file)
+	prebuiltMarker := filepath.Join(pluginDir, ".prebuilt")
+	if err := os.WriteFile(prebuiltMarker, []byte(string(channel)), 0644); err != nil {
+		log.Printf("Warning: Failed to create prebuilt marker: %v", err)
 	}
 
 	// Read plugin metadata

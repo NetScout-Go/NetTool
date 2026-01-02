@@ -339,6 +339,7 @@ func main() {
 			pluginManage.POST("/install", func(c *gin.Context) {
 				var request struct {
 					Repository string `json:"repository"`
+					Channel    string `json:"channel"` // "stable", "beta", or "source"
 				}
 
 				if err := c.BindJSON(&request); err != nil {
@@ -346,19 +347,68 @@ func main() {
 					return
 				}
 
-				err := pluginInstaller.InstallPluginFromRepository(request.Repository)
+				// Parse channel, default to stable
+				channel := plugins.ReleaseChannelStable
+				switch request.Channel {
+				case "beta":
+					channel = plugins.ReleaseChannelBeta
+				case "source":
+					channel = plugins.ReleaseChannelSource
+				case "stable", "":
+					channel = plugins.ReleaseChannelStable
+				default:
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid channel. Use 'stable', 'beta', or 'source'"})
+					return
+				}
+
+				// Extract org and repo from the repository URL
+				// Example: https://github.com/NetScout-Go/Plugin_ping
+				parts := strings.Split(request.Repository, "/")
+				if len(parts) < 2 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid repository URL format"})
+					return
+				}
+
+				// Get org and repo name
+				var org, repoName string
+				for i, part := range parts {
+					if part == "github.com" && i+2 < len(parts) {
+						org = parts[i+1]
+						repoName = parts[i+2]
+						break
+					}
+				}
+
+				if org == "" || repoName == "" {
+					// Fallback: use last two parts
+					org = parts[len(parts)-2]
+					repoName = parts[len(parts)-1]
+				}
+
+				// Remove .git suffix if present
+				if strings.HasSuffix(repoName, ".git") {
+					repoName = repoName[:len(repoName)-4]
+				}
+
+				// Install using the channel-aware method
+				metadata, err := pluginInstaller.InstallFromGitHubWithChannel(org, repoName, channel)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
 
-				c.JSON(http.StatusOK, gin.H{"message": "Plugin installed successfully"})
+				c.JSON(http.StatusOK, gin.H{
+					"message": "Plugin installed successfully",
+					"plugin":  metadata,
+					"channel": string(channel),
+				})
 			})
 
 			// Bulk install plugins from repositories
 			pluginManage.POST("/bulk-install", func(c *gin.Context) {
 				var request struct {
 					Repositories []string `json:"repositories"`
+					Channel      string   `json:"channel"` // "stable", "beta", or "source"
 				}
 
 				if err := c.BindJSON(&request); err != nil {
@@ -371,7 +421,18 @@ func main() {
 					return
 				}
 
-				result := pluginInstaller.BulkInstallPlugins(request.Repositories)
+				// Parse channel, default to stable
+				channel := plugins.ReleaseChannelStable
+				switch request.Channel {
+				case "beta":
+					channel = plugins.ReleaseChannelBeta
+				case "source":
+					channel = plugins.ReleaseChannelSource
+				case "stable", "":
+					channel = plugins.ReleaseChannelStable
+				}
+
+				result := pluginInstaller.BulkInstallPluginsWithChannel(request.Repositories, channel)
 				c.JSON(http.StatusOK, result)
 			})
 

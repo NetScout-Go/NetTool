@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -165,6 +166,12 @@ func (pm *PluginManager) RefreshPlugins() error {
 
 		pluginDir := filepath.Join("app/plugins/plugins", entry.Name())
 		pluginID := entry.Name()
+		pluginJSONPath := filepath.Join(pluginDir, "plugin.json")
+
+		// Plugin.json must exist for all plugins
+		if _, err := os.Stat(pluginJSONPath); os.IsNotExist(err) {
+			continue
+		}
 
 		// Get the plugin execution function from the registry
 		executeFunc, err := registry.GetPluginFunc(pluginID)
@@ -173,15 +180,39 @@ func (pm *PluginManager) RefreshPlugins() error {
 			continue
 		}
 
-		// Try to get plugin definition
-		plugin, err := loader.loadPlugin(pluginDir, pluginID)
-		if err != nil {
-			fmt.Printf("Warning: Failed to load plugin %s: %v\n", pluginID, err)
+		// Check if this is a pre-built plugin
+		prebuiltMarker := filepath.Join(pluginDir, ".prebuilt")
+		pluginGoPath := filepath.Join(pluginDir, "plugin.go")
+		isPrebuilt := false
+		if _, err := os.Stat(prebuiltMarker); !os.IsNotExist(err) {
+			isPrebuilt = true
+		} else if _, err := os.Stat(pluginGoPath); os.IsNotExist(err) {
+			// No plugin.go - check if there's a binary
+			binaryPath := filepath.Join(pluginDir, pluginID)
+			if _, err := os.Stat(binaryPath); !os.IsNotExist(err) {
+				isPrebuilt = true
+			}
+		}
+
+		// Read plugin definition from plugin.json
+		var definition types.PluginDefinition
+		if jsonData, err := os.ReadFile(pluginJSONPath); err == nil {
+			if err := json.Unmarshal(jsonData, &definition); err != nil {
+				fmt.Printf("Warning: Failed to parse plugin.json for %s: %v\n", pluginID, err)
+				continue
+			}
+		} else {
+			fmt.Printf("Warning: Failed to read plugin.json for %s: %v\n", pluginID, err)
 			continue
 		}
 
-		// Get plugin definition
-		definition := plugin.GetDefinition()
+		// For source plugins, try to get dynamic definition
+		if !isPrebuilt {
+			plugin, err := loader.loadPlugin(pluginDir, pluginID)
+			if err == nil {
+				definition = plugin.GetDefinition()
+			}
+		}
 
 		// Register the plugin
 		pm.plugins[pluginID] = &Plugin{
@@ -196,7 +227,11 @@ func (pm *PluginManager) RefreshPlugins() error {
 			Execute:     executeFunc,
 		}
 
-		fmt.Printf("Registered plugin: %s (%s)\n", definition.Name, definition.ID)
+		if isPrebuilt {
+			fmt.Printf("Registered pre-built plugin: %s (%s)\n", definition.Name, definition.ID)
+		} else {
+			fmt.Printf("Registered plugin: %s (%s)\n", definition.Name, definition.ID)
+		}
 	}
 
 	// Register hardcoded plugins if they don't already exist
