@@ -5,9 +5,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"io"
+	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -18,440 +17,298 @@ import (
 	psnet "github.com/shirou/gopsutil/v3/net"
 )
 
-// NetworkInfo represents the network information for the device
+// NetworkInfo represents the complete network information for the device
+// Field names match frontend expectations (camelCase)
 type NetworkInfo struct {
-	IPv4Address    string         `json:"ipv4Address"`
-	IPv6Address    string         `json:"ipv6Address"`
-	SubnetMask     string         `json:"subnetMask"`
-	Gateway        string         `json:"gateway"`
-	SSID           string         `json:"ssid,omitempty"`
-	EthernetInfo   EthernetInfo   `json:"ethernetInfo,omitempty"`
-	DNSServers     []string       `json:"dnsServers"`
-	DHCPInfo       DHCPInfo       `json:"dhcpInfo"`
-	VLANInfo       VLANInfo       `json:"vlanInfo,omitempty"`
-	Connection     Connection     `json:"connection"`
-	Traffic        Traffic        `json:"traffic"`
-	ARPEntries     []ARPEntry     `json:"arpEntries"`
-	ServiceLatency ServiceLatency `json:"serviceLatency"`
-	Timestamp      time.Time      `json:"timestamp"`
-}
+	// IP Configuration
+	Ipv4           string `json:"ipv4"`
+	Ipv6           string `json:"ipv6"`
+	Subnet         string `json:"subnet"`
+	Gateway        string `json:"gateway"`
+	DhcpEnabled    bool   `json:"dhcpEnabled"`
+	DhcpServer     string `json:"dhcpServer,omitempty"`
+	DhcpLeaseStart string `json:"dhcpLeaseStart,omitempty"`
+	DhcpLeaseEnd   string `json:"dhcpLeaseEnd,omitempty"`
 
-// EthernetInfo represents ethernet connection details
-type EthernetInfo struct {
+	// Gateway/Router Information
+	GatewayMac     string  `json:"gatewayMac"`
+	GatewayLatency float64 `json:"gatewayLatency"`
+	GatewayVendor  string  `json:"gatewayVendor,omitempty"`
+	HopsToInternet int     `json:"hopsToInternet"`
+
+	// DNS
+	DnsServers []string `json:"dnsServers"`
+
+	// Interface Information
 	InterfaceName string `json:"interfaceName"`
-	MACAddress    string `json:"macAddress"`
-	Speed         string `json:"speed"`
+	MacAddress    string `json:"macAddress"`
+	LinkSpeed     string `json:"linkSpeed"`
+	Mtu           int    `json:"mtu"`
 	Duplex        string `json:"duplex"`
+
+	// Connection Status
+	ConnectionType string  `json:"connectionType"` // "Ethernet" or "WiFi"
+	Connected      bool    `json:"connected"`
+	Uptime         int64   `json:"uptime"`
+	Latency        float64 `json:"latency"`
+	PacketLoss     float64 `json:"packetLoss"`
+
+	// WiFi specific (if applicable)
+	Ssid           string `json:"ssid,omitempty"`
+	SignalStrength int    `json:"signalStrength,omitempty"`
+	WifiChannel    int    `json:"wifiChannel,omitempty"`
+	WifiFrequency  string `json:"wifiFrequency,omitempty"`
+	WifiBssid      string `json:"wifiBssid,omitempty"`
+
+	// Switch/Network Detection
+	SwitchDetected bool   `json:"switchDetected"`
+	SwitchPort     string `json:"switchPort,omitempty"`
+	SwitchInfo     string `json:"switchInfo,omitempty"`
+
+	// VLAN Information
+	VlanEnabled bool   `json:"vlanEnabled"`
+	VlanId      int    `json:"vlanId,omitempty"`
+	VlanName    string `json:"vlanName,omitempty"`
+
+	// Traffic Statistics (kept for compatibility but not shown on simplified dashboard)
+	BytesReceived   int64 `json:"bytesReceived"`
+	BytesSent       int64 `json:"bytesSent"`
+	PacketsReceived int64 `json:"packetsReceived"`
+	PacketsSent     int64 `json:"packetsSent"`
+
+	// Additional Network Info
+	PublicIp      string `json:"publicIp,omitempty"`
+	NetworkPrefix string `json:"networkPrefix,omitempty"`
+	BroadcastAddr string `json:"broadcastAddr,omitempty"`
+
+	Timestamp time.Time `json:"timestamp"`
 }
 
-// DHCPInfo represents DHCP configuration
-type DHCPInfo struct {
-	Enabled       bool      `json:"enabled"`
-	LeaseObtained time.Time `json:"leaseObtained,omitempty"`
-	LeaseExpires  time.Time `json:"leaseExpires,omitempty"`
-	DHCPServer    string    `json:"dhcpServer,omitempty"`
+// GetNetworkInfo retrieves comprehensive network information
+func GetNetworkInfo() (*NetworkInfo, error) {
+	info := &NetworkInfo{
+		Timestamp:  time.Now(),
+		DnsServers: make([]string, 0),
+	}
+
+	// Find and analyze primary interface
+	iface, counter := findPrimaryInterface()
+	if iface == nil {
+		info.Connected = false
+		info.ConnectionType = "Unknown"
+		return info, nil
+	}
+
+	// Extract IP configuration
+	extractIPConfig(iface, info)
+
+	// Get gateway information
+	info.Gateway = getDefaultGateway()
+
+	// Determine connection type
+	if isWirelessInterface(iface.Name) {
+		info.ConnectionType = "WiFi"
+		extractWifiInfo(iface.Name, info)
+	} else {
+		info.ConnectionType = "Ethernet"
+	}
+
+	// Interface details
+	info.InterfaceName = iface.Name
+	info.MacAddress = formatMACAddress(iface.HardwareAddr.String())
+	info.Mtu = iface.MTU
+	info.LinkSpeed = getLinkSpeed(iface.Name)
+	info.Duplex = getLinkDuplex(iface.Name)
+
+	// Connection status
+	info.Connected = info.Ipv4 != "" || info.Ipv6 != ""
+	info.Uptime = getSystemUptime()
+
+	// DNS servers
+	info.DnsServers = getDNSServers()
+
+	// DHCP information
+	extractDHCPInfo(iface.Name, info)
+
+	// Gateway MAC and latency (do in parallel for speed)
+	var wg sync.WaitGroup
+	wg.Add(4)
+
+	go func() {
+		defer wg.Done()
+		if info.Gateway != "" && info.Gateway != "N/A" {
+			info.GatewayMac = getGatewayMAC(info.Gateway)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if info.Gateway != "" && info.Gateway != "N/A" {
+			info.GatewayLatency = measureGatewayLatency(info.Gateway)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		info.Latency, info.PacketLoss = measureInternetConnectivity()
+	}()
+
+	go func() {
+		defer wg.Done()
+		info.HopsToInternet = countHopsToInternet()
+	}()
+
+	wg.Wait()
+
+	// VLAN detection
+	detectVLAN(iface.Name, info)
+
+	// Switch/LLDP detection (if available)
+	detectSwitch(iface.Name, info)
+
+	// Traffic statistics
+	if counter != nil {
+		info.BytesReceived = int64(counter.BytesRecv)
+		info.BytesSent = int64(counter.BytesSent)
+		info.PacketsReceived = int64(counter.PacketsRecv)
+		info.PacketsSent = int64(counter.PacketsSent)
+	}
+
+	// Calculate network prefix and broadcast
+	if info.Ipv4 != "" && info.Subnet != "" {
+		info.NetworkPrefix = calculateNetworkPrefix(info.Ipv4, info.Subnet)
+		info.BroadcastAddr = calculateBroadcast(info.Ipv4, info.Subnet)
+	}
+
+	return info, nil
 }
 
-// VLANInfo represents VLAN configuration if applicable
-type VLANInfo struct {
-	Enabled  bool   `json:"enabled"`
-	VLANID   int    `json:"vlanId,omitempty"`
-	Priority int    `json:"priority,omitempty"`
-	Name     string `json:"name,omitempty"`
-}
-
-// Connection represents connection status and metrics
-type Connection struct {
-	Status         string  `json:"status"` // "connected", "disconnected", "limited"
-	Uptime         int64   `json:"uptime"` // in seconds
-	LatencyMS      float64 `json:"latencyMs"`
-	PacketLoss     float64 `json:"packetLoss"`               // percentage
-	SignalStrength int     `json:"signalStrength,omitempty"` // for wireless, in dBm
-}
-
-// Traffic represents network traffic statistics
-type Traffic struct {
-	BytesReceived    int64   `json:"bytesReceived"`
-	BytesSent        int64   `json:"bytesSent"`
-	PacketsReceived  int64   `json:"packetsReceived"`
-	PacketsSent      int64   `json:"packetsSent"`
-	CurrentBandwidth float64 `json:"currentBandwidth"` // in Mbps
-}
-
-// ARPEntry represents a single entry in the ARP table (IP to MAC mapping)
-type ARPEntry struct {
-	IPAddress  string `json:"ipAddress"`
-	MACAddress string `json:"macAddress"`
-	Device     string `json:"device"`
-	State      string `json:"state"`
-}
-
-// ServiceLatency represents latency measurements to various major services
-type ServiceLatency struct {
-	Google     float64 `json:"google"`     // Google latency in ms
-	Amazon     float64 `json:"amazon"`     // Amazon latency in ms
-	Cloudflare float64 `json:"cloudflare"` // Cloudflare latency in ms
-	Microsoft  float64 `json:"microsoft"`  // Microsoft latency in ms
-	DNS        float64 `json:"dns"`        // DNS latency in ms
-	HTTP       float64 `json:"http"`       // HTTP latency in ms
-}
-
-func findPrimaryInterface() (*net.Interface, *psnet.IOCountersStat, error) {
+func findPrimaryInterface() (*net.Interface, *psnet.IOCountersStat) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil
 	}
 
-	counters, err := psnet.IOCounters(true)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	counterMap := make(map[string]psnet.IOCountersStat, len(counters))
+	counters, _ := psnet.IOCounters(true)
+	counterMap := make(map[string]psnet.IOCountersStat)
 	for _, c := range counters {
 		counterMap[c.Name] = c
 	}
 
-	for _, iface := range ifaces {
+	// Priority: interfaces with default route, then by traffic
+	gateway := getDefaultGateway()
+	var gatewayIface *net.Interface
+
+	for i := range ifaces {
+		iface := &ifaces[i]
+
+		// Skip loopback and down interfaces
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
 
-		if c, ok := counterMap[iface.Name]; ok {
-			counter := c
-			ifaceCopy := iface
-			return &ifaceCopy, &counter, nil
+		// Skip virtual/container interfaces
+		if isVirtualInterface(iface.Name) {
+			continue
 		}
 
-		ifaceCopy := iface
-		return &ifaceCopy, nil, nil
+		// Check if this interface has the gateway
+		if gateway != "" && gateway != "N/A" {
+			if hasRouteToGateway(iface.Name, gateway) {
+				gatewayIface = iface
+				break
+			}
+		}
+
+		// Fallback: first interface with an IP
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok && ipNet.IP.To4() != nil {
+				if gatewayIface == nil {
+					gatewayIface = iface
+				}
+			}
+		}
 	}
 
-	return nil, nil, nil
+	if gatewayIface != nil {
+		if c, ok := counterMap[gatewayIface.Name]; ok {
+			return gatewayIface, &c
+		}
+		return gatewayIface, nil
+	}
+
+	return nil, nil
 }
 
-func extractIPInfo(iface *net.Interface) (string, string, string) {
-	if iface == nil {
-		return "", "", ""
+func isVirtualInterface(name string) bool {
+	virtPrefixes := []string{"docker", "br-", "veth", "virbr", "vnet", "tun", "tap", "lo"}
+	for _, prefix := range virtPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRouteToGateway(ifaceName, gateway string) bool {
+	data, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return false
 	}
 
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines[1:] {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == ifaceName && fields[1] == "00000000" {
+			return true
+		}
+	}
+	return false
+}
+
+func extractIPConfig(iface *net.Interface, info *NetworkInfo) {
 	addrs, err := iface.Addrs()
 	if err != nil {
-		return "", "", ""
+		return
 	}
 
-	var ipv4, ipv6, subnet string
 	for _, addr := range addrs {
 		if ipNet, ok := addr.(*net.IPNet); ok {
-			if ip := ipNet.IP.To4(); ip != nil {
-				ipv4 = ip.String()
+			if ip := ipNet.IP.To4(); ip != nil && info.Ipv4 == "" {
+				info.Ipv4 = ip.String()
 				ones, _ := ipNet.Mask.Size()
-				subnet = cidrToSubnet(ones)
-			} else if ipv6 == "" {
-				ipv6 = ipNet.IP.String()
-			}
-		}
-	}
-
-	return ipv4, ipv6, subnet
-}
-
-func getConnectionMetrics(gateway string) (float64, float64) {
-	targets := []string{}
-	if gateway != "" && gateway != "N/A" {
-		targets = append(targets, gateway)
-	}
-	targets = append(targets, "8.8.8.8")
-
-	for _, target := range targets {
-		latency, loss := probeConnection(target)
-		if latency > 0 || loss < 100 {
-			return latency, loss
-		}
-	}
-
-	return 0, 100
-}
-
-func probeConnection(target string) (float64, float64) {
-	const attempts = 3
-	const timeout = 750 * time.Millisecond
-
-	successes := 0
-	var total float64
-
-	for i := 0; i < attempts; i++ {
-		start := time.Now()
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(target, "53"), timeout)
-		if err != nil {
-			continue
-		}
-
-		total += float64(time.Since(start).Milliseconds())
-		_ = conn.Close()
-		successes++
-	}
-
-	loss := 100 * float64(attempts-successes) / float64(attempts)
-
-	if successes == 0 {
-		return 0, loss
-	}
-
-	return total / float64(successes), loss
-}
-
-func measureServiceLatencies() ServiceLatency {
-	services := map[string]string{
-		"google":     "google.com",
-		"amazon":     "amazon.com",
-		"cloudflare": "cloudflare.com",
-		"microsoft":  "microsoft.com",
-	}
-
-	type result struct {
-		name    string
-		latency float64
-	}
-
-	results := make(chan result, len(services))
-	var wg sync.WaitGroup
-
-	for name, host := range services {
-		wg.Add(1)
-		go func(n, h string) {
-			defer wg.Done()
-			results <- result{name: n, latency: measureTCPLatency(h)}
-		}(name, host)
-	}
-
-	wg.Wait()
-	close(results)
-
-	lat := ServiceLatency{}
-	for res := range results {
-		switch res.name {
-		case "google":
-			lat.Google = res.latency
-		case "amazon":
-			lat.Amazon = res.latency
-		case "cloudflare":
-			lat.Cloudflare = res.latency
-		case "microsoft":
-			lat.Microsoft = res.latency
-		}
-	}
-
-	lat.DNS = measureDNSLookupLatency()
-	lat.HTTP = measureHTTPSLatency()
-
-	return lat
-}
-
-func measureTCPLatency(host string) float64 {
-	ports := []string{"443", "80"}
-	for _, port := range ports {
-		start := time.Now()
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), 750*time.Millisecond)
-		if err != nil {
-			continue
-		}
-		latency := float64(time.Since(start).Milliseconds())
-		_ = conn.Close()
-		return latency
-	}
-	return 0
-}
-
-func measureDNSLookupLatency() float64 {
-	start := time.Now()
-	_, err := net.LookupHost("www.google.com")
-	if err != nil {
-		return 0
-	}
-	return float64(time.Since(start).Milliseconds())
-}
-
-func measureHTTPSLatency() float64 {
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-	}
-
-	urls := []string{"https://www.google.com", "https://www.cloudflare.com"}
-	for _, url := range urls {
-		start := time.Now()
-		resp, err := client.Head(url)
-		if err != nil {
-			continue
-		}
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		return float64(time.Since(start).Milliseconds())
-	}
-
-	return 0
-}
-
-// GetNetworkInfo retrieves the current network information
-func GetNetworkInfo() (*NetworkInfo, error) {
-	iface, counter, err := findPrimaryInterface()
-	if err != nil {
-		return nil, err
-	}
-
-	ipv4, ipv6, subnet := extractIPInfo(iface)
-
-	gateway := getDefaultGateway()
-	dnsServers := getDNSServers()
-	dhcpServer := getDHCPServer(gateway)
-	uptime := getUptime()
-
-	latencyMS, packetLoss := getConnectionMetrics(gateway)
-
-	traffic := Traffic{}
-	if counter != nil {
-		traffic = Traffic{
-			BytesReceived:    int64(counter.BytesRecv),
-			BytesSent:        int64(counter.BytesSent),
-			PacketsReceived:  int64(counter.PacketsRecv),
-			PacketsSent:      int64(counter.PacketsSent),
-			CurrentBandwidth: calculateBandwidth(*counter),
-		}
-	}
-
-	status := "disconnected"
-	if ipv4 != "" || ipv6 != "" {
-		status = "connected"
-	}
-
-	networkInfo := &NetworkInfo{
-		IPv4Address: ipv4,
-		IPv6Address: ipv6,
-		SubnetMask:  subnet,
-		Gateway:     gateway,
-		DNSServers:  dnsServers,
-		DHCPInfo: DHCPInfo{
-			Enabled:    true,
-			DHCPServer: dhcpServer,
-		},
-		Connection: Connection{
-			Status:     status,
-			Uptime:     uptime,
-			LatencyMS:  latencyMS,
-			PacketLoss: packetLoss,
-		},
-		Traffic:   traffic,
-		Timestamp: time.Now(),
-	}
-
-	if iface != nil {
-		networkInfo.EthernetInfo = EthernetInfo{
-			InterfaceName: iface.Name,
-			MACAddress:    iface.HardwareAddr.String(),
-			Speed:         "1 Gbps",
-			Duplex:        "Full",
-		}
-
-		if isWireless(iface.Name) {
-			networkInfo.SSID = getWirelessSSID(iface.Name)
-			networkInfo.Connection.SignalStrength = getSignalStrength(iface.Name)
-		}
-
-		if strings.Contains(iface.Name, ".") {
-			vlanComponent := iface.Name[strings.LastIndex(iface.Name, ".")+1:]
-			networkInfo.VLANInfo = VLANInfo{
-				Enabled: true,
-				VLANID:  getVLANID(iface.Name),
-				Name:    "VLAN " + vlanComponent,
-			}
-		} else {
-			networkInfo.VLANInfo = VLANInfo{Enabled: false}
-		}
-	}
-
-	if entries, err := GetARPTable(); err == nil {
-		networkInfo.ARPEntries = entries
-	}
-
-	networkInfo.ServiceLatency = measureServiceLatencies()
-
-	return networkInfo, nil
-}
-
-// GetARPTable retrieves the current ARP table using the modern 'ip neigh show' command
-// instead of the legacy 'arp -a' command
-func GetARPTable() ([]ARPEntry, error) {
-	// Use the modern 'ip neigh show' command
-	cmd := exec.Command("ip", "neigh", "show")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse the output
-	var entries []ARPEntry
-	scanner := bufio.NewScanner(&out)
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Parse line format: 192.168.1.1 dev eth0 lladdr 00:11:22:33:44:55 REACHABLE
-		fields := strings.Fields(line)
-
-		if len(fields) < 4 {
-			continue
-		}
-
-		entry := ARPEntry{
-			IPAddress: fields[0],
-		}
-
-		for i := 1; i < len(fields); i++ {
-			switch fields[i] {
-			case "dev":
-				if i+1 < len(fields) {
-					entry.Device = fields[i+1]
-					i++
+				info.Subnet = cidrToSubnet(ones)
+			} else if ip == nil && info.Ipv6 == "" {
+				// Skip link-local IPv6 for display
+				if !ipNet.IP.IsLinkLocalUnicast() {
+					info.Ipv6 = ipNet.IP.String()
 				}
-			case "lladdr":
-				if i+1 < len(fields) {
-					entry.MACAddress = fields[i+1]
-					i++
-				}
-			case "REACHABLE", "STALE", "DELAY", "PERMANENT", "INCOMPLETE", "FAILED", "PROBE", "NOARP":
-				entry.State = fields[i]
 			}
-		}
-
-		// Only add entries that have at least IP and MAC
-		if entry.IPAddress != "" && entry.MACAddress != "" {
-			entries = append(entries, entry)
 		}
 	}
 
-	return entries, nil
+	// If no global IPv6, use link-local
+	if info.Ipv6 == "" {
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok && ipNet.IP.To4() == nil {
+				info.Ipv6 = ipNet.IP.String()
+				break
+			}
+		}
+	}
 }
 
-// Helper functions to retrieve network information
 func getDefaultGateway() string {
 	data, err := os.ReadFile("/proc/net/route")
 	if err != nil {
-		return "N/A"
+		return ""
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) <= 1 {
-		return "N/A"
-	}
-
 	for _, line := range lines[1:] {
 		fields := strings.Fields(line)
-		if len(fields) < 3 {
-			continue
-		}
-
-		// Destination column equals 0 for default route
-		if fields[1] != "00000000" {
+		if len(fields) < 3 || fields[1] != "00000000" {
 			continue
 		}
 
@@ -463,48 +320,486 @@ func getDefaultGateway() string {
 		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, uint32(value))
 		ip := net.IP(b)
-		if ip.Equal(net.IPv4zero) {
-			continue
+		if !ip.Equal(net.IPv4zero) {
+			return ip.String()
 		}
-
-		return ip.String()
 	}
 
-	return "N/A"
+	return ""
 }
 
 func getDNSServers() []string {
-	data, err := os.ReadFile("/etc/resolv.conf")
-	if err != nil {
-		return []string{"N/A"}
-	}
-
 	var servers []string
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "nameserver") {
-			fields := strings.Fields(line)
-			if len(fields) >= 2 {
-				servers = append(servers, fields[1])
+
+	// Try systemd-resolved first
+	if data, err := exec.Command("resolvectl", "status").Output(); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "DNS Servers:") || strings.Contains(line, "Current DNS Server:") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					ip := strings.TrimSpace(parts[1])
+					if ip != "" && net.ParseIP(ip) != nil {
+						servers = append(servers, ip)
+					}
+				}
 			}
 		}
 	}
 
+	// Fallback to resolv.conf
 	if len(servers) == 0 {
-		return []string{"N/A"}
+		data, err := os.ReadFile("/etc/resolv.conf")
+		if err == nil {
+			scanner := bufio.NewScanner(bytes.NewReader(data))
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if strings.HasPrefix(line, "nameserver") {
+					fields := strings.Fields(line)
+					if len(fields) >= 2 {
+						servers = append(servers, fields[1])
+					}
+				}
+			}
+		}
 	}
+
 	return servers
 }
 
-func getDHCPServer(defaultGateway string) string {
-	if defaultGateway != "" && defaultGateway != "N/A" {
-		return defaultGateway
+func extractDHCPInfo(ifaceName string, info *NetworkInfo) {
+	// Check for DHCP lease files
+	leaseFiles := []string{
+		"/var/lib/dhcp/dhclient." + ifaceName + ".leases",
+		"/var/lib/dhcp/dhclient.leases",
+		"/var/lib/dhclient/dhclient." + ifaceName + ".leases",
+		"/var/lib/NetworkManager/" + ifaceName + ".lease",
 	}
-	return "N/A"
+
+	for _, leaseFile := range leaseFiles {
+		data, err := os.ReadFile(leaseFile)
+		if err != nil {
+			continue
+		}
+
+		info.DhcpEnabled = true
+		content := string(data)
+
+		// Parse DHCP server
+		if idx := strings.Index(content, "dhcp-server-identifier"); idx != -1 {
+			line := content[idx:]
+			if end := strings.Index(line, ";"); end != -1 {
+				parts := strings.Fields(line[:end])
+				if len(parts) >= 2 {
+					info.DhcpServer = parts[1]
+				}
+			}
+		}
+		return
+	}
+
+	// Check NetworkManager connection
+	cmd := exec.Command("nmcli", "-t", "-f", "IP4.ADDRESS,IP4.GATEWAY,DHCP4.OPTION", "device", "show", ifaceName)
+	if output, err := cmd.Output(); err == nil {
+		if strings.Contains(string(output), "dhcp_server_identifier") {
+			info.DhcpEnabled = true
+		}
+	}
+
+	// Assume DHCP if we have a gateway
+	if info.Gateway != "" {
+		info.DhcpEnabled = true
+	}
 }
 
-func getUptime() int64 {
+func getGatewayMAC(gateway string) string {
+	// First try ARP cache
+	data, err := os.ReadFile("/proc/net/arp")
+	if err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines[1:] {
+			fields := strings.Fields(line)
+			if len(fields) >= 4 && fields[0] == gateway {
+				mac := fields[3]
+				if mac != "00:00:00:00:00:00" {
+					return formatMACAddress(mac)
+				}
+			}
+		}
+	}
+
+	// Try ip neigh
+	cmd := exec.Command("ip", "neigh", "show", gateway)
+	output, err := cmd.Output()
+	if err == nil {
+		fields := strings.Fields(string(output))
+		for i, f := range fields {
+			if f == "lladdr" && i+1 < len(fields) {
+				return formatMACAddress(fields[i+1])
+			}
+		}
+	}
+
+	// Ping to populate ARP cache, then retry
+	exec.Command("ping", "-c", "1", "-W", "1", gateway).Run()
+	time.Sleep(100 * time.Millisecond)
+
+	data, err = os.ReadFile("/proc/net/arp")
+	if err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines[1:] {
+			fields := strings.Fields(line)
+			if len(fields) >= 4 && fields[0] == gateway {
+				mac := fields[3]
+				if mac != "00:00:00:00:00:00" {
+					return formatMACAddress(mac)
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+func formatMACAddress(mac string) string {
+	// Ensure consistent uppercase format
+	return strings.ToUpper(strings.ReplaceAll(mac, "-", ":"))
+}
+
+func measureGatewayLatency(gateway string) float64 {
+	// Use ICMP ping for gateway latency
+	cmd := exec.Command("ping", "-c", "3", "-W", "1", gateway)
+	output, err := cmd.Output()
+	if err != nil {
+		// Fallback to TCP
+		return measureTCPLatency(gateway, "53")
+	}
+
+	// Parse ping output for avg latency
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "rtt") || strings.Contains(line, "round-trip") {
+			// Format: rtt min/avg/max/mdev = 0.123/0.456/0.789/0.012 ms
+			parts := strings.Split(line, "=")
+			if len(parts) >= 2 {
+				stats := strings.Split(strings.TrimSpace(parts[1]), "/")
+				if len(stats) >= 2 {
+					if avg, err := strconv.ParseFloat(stats[1], 64); err == nil {
+						return avg
+					}
+				}
+			}
+		}
+	}
+
+	return 0
+}
+
+func measureTCPLatency(host, port string) float64 {
+	start := time.Now()
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), 2*time.Second)
+	if err != nil {
+		return 0
+	}
+	latency := float64(time.Since(start).Milliseconds())
+	conn.Close()
+	return latency
+}
+
+func measureInternetConnectivity() (float64, float64) {
+	targets := []string{"8.8.8.8", "1.1.1.1", "208.67.222.222"}
+	attempts := 4
+	var totalLatency float64
+	var successCount int
+
+	for _, target := range targets {
+		cmd := exec.Command("ping", "-c", strconv.Itoa(attempts), "-W", "1", target)
+		output, err := cmd.Output()
+		if err != nil {
+			continue
+		}
+
+		// Parse results
+		outputStr := string(output)
+
+		// Get packet stats
+		for _, line := range strings.Split(outputStr, "\n") {
+			if strings.Contains(line, "packets transmitted") {
+				// Format: 4 packets transmitted, 4 received, 0% packet loss
+				parts := strings.Split(line, ",")
+				for _, part := range parts {
+					part = strings.TrimSpace(part)
+					if strings.Contains(part, "received") {
+						fields := strings.Fields(part)
+						if len(fields) >= 1 {
+							if recv, err := strconv.Atoi(fields[0]); err == nil {
+								successCount += recv
+							}
+						}
+					}
+				}
+			}
+
+			// Get avg latency
+			if strings.Contains(line, "rtt") || strings.Contains(line, "round-trip") {
+				parts := strings.Split(line, "=")
+				if len(parts) >= 2 {
+					stats := strings.Split(strings.TrimSpace(parts[1]), "/")
+					if len(stats) >= 2 {
+						if avg, err := strconv.ParseFloat(stats[1], 64); err == nil {
+							totalLatency += avg
+						}
+					}
+				}
+			}
+		}
+		break // Use first successful target
+	}
+
+	totalAttempts := attempts
+	if successCount == 0 {
+		return 0, 100.0
+	}
+
+	avgLatency := totalLatency
+	packetLoss := float64(totalAttempts-successCount) / float64(totalAttempts) * 100
+
+	return avgLatency, packetLoss
+}
+
+func countHopsToInternet() int {
+	// Quick traceroute to 8.8.8.8
+	cmd := exec.Command("traceroute", "-n", "-m", "15", "-w", "1", "-q", "1", "8.8.8.8")
+	output, err := cmd.Output()
+	if err != nil {
+		// Try alternative
+		cmd = exec.Command("tracepath", "-n", "-m", "15", "8.8.8.8")
+		output, err = cmd.Output()
+		if err != nil {
+			return 0
+		}
+	}
+
+	lines := strings.Split(string(output), "\n")
+	hops := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			// Check if first field is a hop number
+			if _, err := strconv.Atoi(fields[0]); err == nil {
+				hops++
+				// Check if we reached 8.8.8.8
+				if strings.Contains(line, "8.8.8.8") {
+					return hops
+				}
+			}
+		}
+	}
+
+	return hops
+}
+
+func getLinkSpeed(ifaceName string) string {
+	// Try reading from sysfs
+	speedPath := fmt.Sprintf("/sys/class/net/%s/speed", ifaceName)
+	data, err := os.ReadFile(speedPath)
+	if err == nil {
+		speed := strings.TrimSpace(string(data))
+		if speedInt, err := strconv.Atoi(speed); err == nil && speedInt > 0 {
+			if speedInt >= 1000 {
+				return fmt.Sprintf("%d Gbps", speedInt/1000)
+			}
+			return fmt.Sprintf("%d Mbps", speedInt)
+		}
+	}
+
+	// Try ethtool
+	cmd := exec.Command("ethtool", ifaceName)
+	output, err := cmd.Output()
+	if err == nil {
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "Speed:") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					return strings.TrimSpace(parts[1])
+				}
+			}
+		}
+	}
+
+	return "Unknown"
+}
+
+func getLinkDuplex(ifaceName string) string {
+	// Try reading from sysfs
+	duplexPath := fmt.Sprintf("/sys/class/net/%s/duplex", ifaceName)
+	data, err := os.ReadFile(duplexPath)
+	if err == nil {
+		duplex := strings.TrimSpace(string(data))
+		if duplex != "" && duplex != "unknown" {
+			return strings.ToUpper(duplex[:1]) + duplex[1:]
+		}
+	}
+
+	// Try ethtool
+	cmd := exec.Command("ethtool", ifaceName)
+	output, err := cmd.Output()
+	if err == nil {
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "Duplex:") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					return strings.TrimSpace(parts[1])
+				}
+			}
+		}
+	}
+
+	return "Full"
+}
+
+func isWirelessInterface(ifaceName string) bool {
+	// Check sysfs for wireless
+	wirelessPath := fmt.Sprintf("/sys/class/net/%s/wireless", ifaceName)
+	if _, err := os.Stat(wirelessPath); err == nil {
+		return true
+	}
+
+	// Check phy80211
+	phyPath := fmt.Sprintf("/sys/class/net/%s/phy80211", ifaceName)
+	if _, err := os.Stat(phyPath); err == nil {
+		return true
+	}
+
+	// Naming convention
+	return strings.HasPrefix(ifaceName, "wlan") || strings.HasPrefix(ifaceName, "wlp") || strings.HasPrefix(ifaceName, "wl")
+}
+
+func extractWifiInfo(ifaceName string, info *NetworkInfo) {
+	// Get SSID using iw
+	cmd := exec.Command("iw", "dev", ifaceName, "link")
+	output, err := cmd.Output()
+	if err == nil {
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "SSID:") {
+				info.Ssid = strings.TrimPrefix(line, "SSID:")
+				info.Ssid = strings.TrimSpace(info.Ssid)
+			}
+			if strings.HasPrefix(line, "signal:") {
+				parts := strings.Fields(line)
+				if len(parts) >= 2 {
+					if sig, err := strconv.Atoi(parts[1]); err == nil {
+						info.SignalStrength = sig
+					}
+				}
+			}
+			if strings.HasPrefix(line, "freq:") {
+				parts := strings.Fields(line)
+				if len(parts) >= 2 {
+					info.WifiFrequency = parts[1] + " MHz"
+					if freq, err := strconv.Atoi(parts[1]); err == nil {
+						if freq >= 5000 {
+							info.WifiFrequency = parts[1] + " MHz (5 GHz)"
+						} else {
+							info.WifiFrequency = parts[1] + " MHz (2.4 GHz)"
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to iwconfig
+	if info.Ssid == "" {
+		cmd = exec.Command("iwconfig", ifaceName)
+		output, err = cmd.Output()
+		if err == nil {
+			outputStr := string(output)
+
+			// ESSID
+			if idx := strings.Index(outputStr, "ESSID:\""); idx != -1 {
+				start := idx + 7
+				end := strings.Index(outputStr[start:], "\"")
+				if end != -1 {
+					info.Ssid = outputStr[start : start+end]
+				}
+			}
+
+			// Signal level
+			if idx := strings.Index(outputStr, "Signal level="); idx != -1 {
+				start := idx + 13
+				end := strings.IndexAny(outputStr[start:], " \n")
+				if end != -1 {
+					sigStr := strings.TrimSuffix(outputStr[start:start+end], "dBm")
+					if sig, err := strconv.Atoi(sigStr); err == nil {
+						info.SignalStrength = sig
+					}
+				}
+			}
+		}
+	}
+}
+
+func detectVLAN(ifaceName string, info *NetworkInfo) {
+	// Check interface name for VLAN suffix
+	if idx := strings.LastIndex(ifaceName, "."); idx != -1 {
+		vlanStr := ifaceName[idx+1:]
+		if vlanID, err := strconv.Atoi(vlanStr); err == nil {
+			info.VlanEnabled = true
+			info.VlanId = vlanID
+			info.VlanName = fmt.Sprintf("VLAN %d", vlanID)
+		}
+	}
+
+	// Check for 802.1Q VLAN
+	vlanPath := fmt.Sprintf("/proc/net/vlan/%s", ifaceName)
+	if _, err := os.Stat(vlanPath); err == nil {
+		info.VlanEnabled = true
+	}
+}
+
+func detectSwitch(ifaceName string, info *NetworkInfo) {
+	// Try LLDP (Link Layer Discovery Protocol)
+	cmd := exec.Command("lldpctl", "-f", "keyvalue", ifaceName)
+	output, err := cmd.Output()
+	if err == nil && len(output) > 0 {
+		info.SwitchDetected = true
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "port.descr=") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					info.SwitchPort = strings.TrimSpace(parts[1])
+				}
+			}
+			if strings.Contains(line, "chassis.name=") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					info.SwitchInfo = strings.TrimSpace(parts[1])
+				}
+			}
+		}
+		return
+	}
+
+	// Try lldpcli
+	cmd = exec.Command("lldpcli", "show", "neighbors", "ports", ifaceName, "summary")
+	output, err = cmd.Output()
+	if err == nil && len(output) > 0 && !strings.Contains(string(output), "No neighbor") {
+		info.SwitchDetected = true
+		info.SwitchInfo = "Switch detected via LLDP"
+	}
+}
+
+func getSystemUptime() int64 {
 	data, err := os.ReadFile("/proc/uptime")
 	if err != nil {
 		return 0
@@ -523,169 +818,47 @@ func getUptime() int64 {
 	return int64(uptimeFloat)
 }
 
-func isWireless(ifaceName string) bool {
-	// Check if interface is wireless by checking if it appears in iwconfig output
-	cmd := exec.Command("iwconfig", ifaceName)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	err := cmd.Run()
-	if err == nil && !strings.Contains(out.String(), "no wireless extensions") {
-		return true
-	}
-
-	// Fallback to naming convention if iwconfig is not available
-	return strings.HasPrefix(ifaceName, "wlan") || strings.HasPrefix(ifaceName, "wlp")
-}
-
-func getWirelessSSID(ifaceName string) string {
-	if !isWireless(ifaceName) {
+func calculateNetworkPrefix(ip, subnet string) string {
+	ipAddr := net.ParseIP(ip)
+	subnetMask := net.ParseIP(subnet)
+	if ipAddr == nil || subnetMask == nil {
 		return ""
 	}
 
-	// Try using iwconfig
-	cmd := exec.Command("iwconfig", ifaceName)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
+	ipAddr = ipAddr.To4()
+	subnetMask = subnetMask.To4()
+	if ipAddr == nil || subnetMask == nil {
 		return ""
 	}
 
-	// Parse the SSID from the output
-	output := out.String()
-	essidIndex := strings.Index(output, "ESSID:")
-	if essidIndex == -1 {
+	network := make(net.IP, 4)
+	for i := 0; i < 4; i++ {
+		network[i] = ipAddr[i] & subnetMask[i]
+	}
+
+	ones, _ := net.IPMask(subnetMask).Size()
+	return fmt.Sprintf("%s/%d", network.String(), ones)
+}
+
+func calculateBroadcast(ip, subnet string) string {
+	ipAddr := net.ParseIP(ip)
+	subnetMask := net.ParseIP(subnet)
+	if ipAddr == nil || subnetMask == nil {
 		return ""
 	}
 
-	// Extract the SSID value between quotes
-	essidPart := output[essidIndex+7:]
-	endQuoteIndex := strings.Index(essidPart, "\"")
-	if endQuoteIndex == -1 {
+	ipAddr = ipAddr.To4()
+	subnetMask = subnetMask.To4()
+	if ipAddr == nil || subnetMask == nil {
 		return ""
 	}
 
-	return essidPart[:endQuoteIndex]
-}
-
-func getSignalStrength(ifaceName string) int {
-	if !isWireless(ifaceName) {
-		return 0
+	broadcast := make(net.IP, 4)
+	for i := 0; i < 4; i++ {
+		broadcast[i] = ipAddr[i] | ^subnetMask[i]
 	}
 
-	// Try using iwconfig to get signal strength
-	cmd := exec.Command("iwconfig", ifaceName)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		return 0
-	}
-
-	// Parse the signal level from the output
-	output := out.String()
-	signalIndex := strings.Index(output, "Signal level=")
-	if signalIndex == -1 {
-		return 0
-	}
-
-	// Extract the signal level value
-	signalPart := output[signalIndex+13:]
-	endIndex := strings.Index(signalPart, " ")
-	if endIndex == -1 {
-		return 0
-	}
-
-	// Remove dBm suffix if present
-	signalStr := strings.TrimSuffix(signalPart[:endIndex], "dBm")
-	signalInt, err := strconv.Atoi(signalStr)
-	if err != nil {
-		return 0
-	}
-
-	return signalInt
-}
-
-func getVLANID(ifaceName string) int {
-	// Extract VLAN ID from interface name (e.g., eth0.10 -> 10)
-	if idx := strings.LastIndex(ifaceName, "."); idx != -1 {
-		vlanStr := ifaceName[idx+1:]
-		vlanID, err := strconv.Atoi(vlanStr)
-		if err == nil {
-			return vlanID
-		}
-	}
-
-	// Try reading from sysfs
-	cmd := exec.Command("cat", "/proc/net/vlan/"+ifaceName)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err == nil {
-		output := out.String()
-		vlanIDIndex := strings.Index(output, "VID: ")
-		if vlanIDIndex != -1 {
-			vlanStr := strings.TrimSpace(output[vlanIDIndex+5:])
-			endIndex := strings.Index(vlanStr, " ")
-			if endIndex != -1 {
-				vlanStr = vlanStr[:endIndex]
-			}
-			vlanID, err := strconv.Atoi(vlanStr)
-			if err == nil {
-				return vlanID
-			}
-		}
-	}
-
-	return 0
-}
-
-// Stores the last measured network counter values for bandwidth calculation
-var (
-	bandwidthMu         sync.Mutex
-	lastMeasurementTime time.Time
-	lastBytesRecv       uint64
-	lastBytesSent       uint64
-	currentBandwidth    float64
-)
-
-func calculateBandwidth(counter psnet.IOCountersStat) float64 {
-	bandwidthMu.Lock()
-	defer bandwidthMu.Unlock()
-
-	now := time.Now()
-
-	// Initialize on first call
-	if lastMeasurementTime.IsZero() {
-		lastMeasurementTime = now
-		lastBytesRecv = counter.BytesRecv
-		lastBytesSent = counter.BytesSent
-		return 0 // No history for calculation yet
-	}
-
-	// Calculate time difference in seconds
-	timeDiffSecs := now.Sub(lastMeasurementTime).Seconds()
-
-	// Avoid division by zero or negative time
-	if timeDiffSecs <= 0 {
-		return currentBandwidth // Return last known bandwidth
-	}
-
-	// Calculate bytes transferred since last measurement
-	bytesDiff := (counter.BytesRecv - lastBytesRecv) + (counter.BytesSent - lastBytesSent)
-
-	// Calculate bandwidth in Megabits per second (1 Byte = 8 bits)
-	// bytes/second * 8 / 1024 / 1024 = Mbps
-	bandwidth := float64(bytesDiff) * 8 / 1024 / 1024 / timeDiffSecs
-
-	// Update last values for next calculation
-	lastMeasurementTime = now
-	lastBytesRecv = counter.BytesRecv
-	lastBytesSent = counter.BytesSent
-	currentBandwidth = bandwidth
-
-	return bandwidth
+	return broadcast.String()
 }
 
 func cidrToSubnet(ones int) string {
@@ -693,6 +866,5 @@ func cidrToSubnet(ones int) string {
 		return "255.255.255.0"
 	}
 	mask := net.CIDRMask(ones, 32)
-	ip := net.IP(mask)
-	return ip.String()
+	return net.IP(mask).String()
 }
