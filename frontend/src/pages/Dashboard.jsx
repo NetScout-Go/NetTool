@@ -18,7 +18,6 @@ import {
   Radio
 } from 'lucide-react'
 import StatsCard from '../components/dashboard/StatsCard'
-import InterfaceDetails from '../components/dashboard/InterfaceDetails'
 import { networkApi, interfacesApi } from '../api'
 
 const containerVariants = {
@@ -347,11 +346,6 @@ export default function Dashboard({ networkData, connected }) {
             </div>
           )}
         </div>
-      </motion.div>
-
-      {/* Interface Details */}
-      <motion.div variants={itemVariants}>
-        <InterfaceDetails data={data} />
       </motion.div>
 
       {/* Network Interface Card */}
