@@ -10,7 +10,11 @@ import {
   Router,
   RefreshCw,
   MonitorSmartphone,
-  Cpu
+  Cpu,
+  Shield,
+  AlertTriangle,
+  Layers,
+  ExternalLink
 } from 'lucide-react'
 import StatsCard from '../components/dashboard/StatsCard'
 import InterfaceDetails from '../components/dashboard/InterfaceDetails'
@@ -233,6 +237,106 @@ export default function Dashboard({ networkData, connected }) {
         </StatsCard>
       </motion.div>
 
+      {/* NAT / Public IP Section */}
+      <motion.div variants={itemVariants}>
+        <div className={`glass-card p-6 border-l-4 ${
+          data.natType === 'None' ? 'border-l-green-500' :
+          data.natType === 'Single NAT' ? 'border-l-blue-500' :
+          data.natType === 'Double NAT' ? 'border-l-yellow-500' :
+          data.natType === 'CGNAT' ? 'border-l-red-500' :
+          'border-l-dark-600'
+        }`}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className={`p-2 rounded-lg ${
+              data.natType === 'None' ? 'bg-green-500/20' :
+              data.natType === 'Single NAT' ? 'bg-blue-500/20' :
+              data.natType === 'Double NAT' ? 'bg-yellow-500/20' :
+              data.natType === 'CGNAT' ? 'bg-red-500/20' :
+              'bg-dark-700/50'
+            }`}>
+              <Shield className={`w-5 h-5 ${
+                data.natType === 'None' ? 'text-green-400' :
+                data.natType === 'Single NAT' ? 'text-blue-400' :
+                data.natType === 'Double NAT' ? 'text-yellow-400' :
+                data.natType === 'CGNAT' ? 'text-red-400' :
+                'text-dark-400'
+              }`} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-white">NAT & Public IP</h3>
+              <p className="text-sm text-dark-400">Network Address Translation status</p>
+            </div>
+            {/* NAT Status Badge */}
+            <div className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+              data.natType === 'None' ? 'bg-green-500/20 text-green-400' :
+              data.natType === 'Single NAT' ? 'bg-blue-500/20 text-blue-400' :
+              data.natType === 'Double NAT' ? 'bg-yellow-500/20 text-yellow-400' :
+              data.natType === 'CGNAT' ? 'bg-red-500/20 text-red-400' :
+              'bg-dark-700/50 text-dark-400'
+            }`}>
+              {data.natType || 'Detecting...'}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Public IP */}
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide flex items-center gap-1">
+                <ExternalLink className="w-3 h-3" />
+                Public IP
+              </p>
+              <p className="text-lg font-mono text-white">{data.publicIp || 'Fetching...'}</p>
+            </div>
+            
+            {/* NAT Layers */}
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide flex items-center gap-1">
+                <Layers className="w-3 h-3" />
+                NAT Layers
+              </p>
+              <p className="text-lg font-semibold text-white">
+                {data.natLayers !== undefined ? data.natLayers : '--'}
+                {data.natLayers > 1 && <span className="text-yellow-400 text-sm ml-2">(Multiple)</span>}
+              </p>
+            </div>
+            
+            {/* First NAT Gateway */}
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide">NAT Gateway</p>
+              <p className="text-lg font-mono text-white">{data.natGatewayIp || data.gateway || '--'}</p>
+            </div>
+            
+            {/* External Router (if double NAT) */}
+            <div className="space-y-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide">External Router</p>
+              <p className="text-lg font-mono text-white">{data.externalRouter || '--'}</p>
+            </div>
+          </div>
+
+          {/* NAT Warnings */}
+          {(data.doubleNat || data.behindCgnat) && (
+            <div className={`mt-4 p-3 rounded-lg flex items-start gap-3 ${
+              data.behindCgnat ? 'bg-red-500/10 border border-red-500/20' :
+              'bg-yellow-500/10 border border-yellow-500/20'
+            }`}>
+              <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                data.behindCgnat ? 'text-red-400' : 'text-yellow-400'
+              }`} />
+              <div>
+                <p className={`font-medium ${data.behindCgnat ? 'text-red-400' : 'text-yellow-400'}`}>
+                  {data.behindCgnat ? 'Carrier-Grade NAT Detected' : 'Double NAT Detected'}
+                </p>
+                <p className="text-sm text-dark-400 mt-1">
+                  {data.behindCgnat 
+                    ? 'Your ISP is using CGNAT. This may prevent port forwarding and affect peer-to-peer connections. Contact your ISP for a public IP address.'
+                    : 'Multiple NAT layers detected. This can cause issues with port forwarding, VPNs, and gaming. Consider bridging one of your routers.'}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+
       {/* Interface Details */}
       <motion.div variants={itemVariants}>
         <InterfaceDetails data={data} />
@@ -334,6 +438,25 @@ export default function Dashboard({ networkData, connected }) {
               <p className="text-xs text-dark-400 font-mono">{data.gateway || '--'}</p>
             </div>
 
+            {/* External Router (Double NAT) */}
+            {data.externalRouter && (
+              <>
+                <div className="flex items-center">
+                  <div className="w-8 h-0.5 bg-dark-700"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <div className="w-8 h-0.5 bg-dark-700"></div>
+                </div>
+
+                <div className="flex flex-col items-center min-w-[100px]">
+                  <div className="w-16 h-16 rounded-xl bg-yellow-500/20 flex items-center justify-center mb-2">
+                    <Router className="w-8 h-8 text-yellow-400" />
+                  </div>
+                  <p className="text-sm font-medium text-white">ISP Router</p>
+                  <p className="text-xs text-dark-400 font-mono">{data.externalRouter}</p>
+                </div>
+              </>
+            )}
+
             {/* Connection Line */}
             <div className="flex items-center">
               <div className="w-8 h-0.5 bg-dark-700"></div>
@@ -347,7 +470,7 @@ export default function Dashboard({ networkData, connected }) {
                 <Globe className="w-8 h-8 text-purple-400" />
               </div>
               <p className="text-sm font-medium text-white">Internet</p>
-              <p className="text-xs text-dark-400">{data.latency ? `${data.latency.toFixed(0)}ms` : '--'}</p>
+              <p className="text-xs text-dark-400 font-mono">{data.publicIp || (data.latency ? `${data.latency.toFixed(0)}ms` : '--')}</p>
             </div>
           </div>
         </div>

@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -80,6 +82,15 @@ type NetworkInfo struct {
 	PublicIp      string `json:"publicIp,omitempty"`
 	NetworkPrefix string `json:"networkPrefix,omitempty"`
 	BroadcastAddr string `json:"broadcastAddr,omitempty"`
+
+	// NAT Detection
+	NatType        string `json:"natType,omitempty"`        // "None", "Single NAT", "Double NAT", "CGNAT", "Unknown"
+	NatLayers      int    `json:"natLayers"`                // Number of NAT layers detected
+	BehindNat      bool   `json:"behindNat"`                // Whether behind NAT
+	BehindCgnat    bool   `json:"behindCgnat"`              // Carrier-Grade NAT detected
+	DoubleNat      bool   `json:"doubleNat"`                // Multiple NAT layers
+	NatGatewayIp   string `json:"natGatewayIp,omitempty"`   // First NAT gateway IP
+	ExternalRouter string `json:"externalRouter,omitempty"` // External router if double NAT
 
 	Timestamp time.Time `json:"timestamp"`
 }
@@ -158,7 +169,15 @@ func GetNetworkInfo() (*NetworkInfo, error) {
 		info.HopsToInternet = countHopsToInternet()
 	}()
 
+	go func() {
+		defer wg.Done()
+		info.PublicIp = getPublicIP()
+	}()
+
 	wg.Wait()
+
+	// NAT detection (needs public IP to be fetched first)
+	detectNAT(info)
 
 	// VLAN detection
 	detectVLAN(iface.Name, info)
@@ -867,4 +886,202 @@ func cidrToSubnet(ones int) string {
 	}
 	mask := net.CIDRMask(ones, 32)
 	return net.IP(mask).String()
+}
+
+// getPublicIP fetches the public IP from external services
+func getPublicIP() string {
+	// List of public IP services (try multiple for reliability)
+	services := []string{
+		"https://api.ipify.org",
+		"https://ifconfig.me/ip",
+		"https://icanhazip.com",
+		"https://ipinfo.io/ip",
+		"https://checkip.amazonaws.com",
+	}
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	for _, service := range services {
+		resp, err := client.Get(service)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				continue
+			}
+
+			ip := strings.TrimSpace(string(body))
+			// Validate it's an IP
+			if net.ParseIP(ip) != nil {
+				return ip
+			}
+		}
+	}
+
+	return ""
+}
+
+// detectNAT analyzes NAT configuration and detects double NAT / CGNAT
+func detectNAT(info *NetworkInfo) {
+	// No public IP means we couldn't determine NAT status
+	if info.PublicIp == "" {
+		info.NatType = "Unknown"
+		return
+	}
+
+	// Check if local IP equals public IP (no NAT)
+	if info.Ipv4 == info.PublicIp {
+		info.NatType = "None"
+		info.BehindNat = false
+		info.NatLayers = 0
+		return
+	}
+
+	// We're behind NAT
+	info.BehindNat = true
+	info.NatGatewayIp = info.Gateway
+
+	// Check for CGNAT (Carrier-Grade NAT)
+	// CGNAT uses 100.64.0.0/10 range (RFC 6598)
+	if isCGNATRange(info.PublicIp) || isCGNATRange(info.Gateway) {
+		info.BehindCgnat = true
+		info.NatType = "CGNAT"
+		info.NatLayers = 2 // At minimum, CGNAT implies ISP NAT + your router
+		return
+	}
+
+	// Check if gateway is in private range
+	gatewayPrivate := isPrivateIP(info.Gateway)
+
+	// Analyze traceroute for NAT layers
+	natLayers, externalRouter := analyzeNATLayers(info.Gateway)
+	info.NatLayers = natLayers
+	info.ExternalRouter = externalRouter
+
+	// Determine NAT type
+	if natLayers > 1 || (gatewayPrivate && externalRouter != "") {
+		info.DoubleNat = true
+		info.NatType = "Double NAT"
+	} else if natLayers == 1 {
+		info.NatType = "Single NAT"
+	} else {
+		info.NatType = "Single NAT"
+		info.NatLayers = 1
+	}
+}
+
+// isCGNATRange checks if IP is in CGNAT range (100.64.0.0/10)
+func isCGNATRange(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+
+	ip = ip.To4()
+	if ip == nil {
+		return false
+	}
+
+	// CGNAT range: 100.64.0.0 - 100.127.255.255
+	return ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127
+}
+
+// isPrivateIP checks if IP is in private ranges
+func isPrivateIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+
+	ip = ip.To4()
+	if ip == nil {
+		return false
+	}
+
+	// Private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+	if ip[0] == 10 {
+		return true
+	}
+	if ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31 {
+		return true
+	}
+	if ip[0] == 192 && ip[1] == 168 {
+		return true
+	}
+
+	return false
+}
+
+// analyzeNATLayers uses traceroute to detect multiple NAT layers
+func analyzeNATLayers(gateway string) (int, string) {
+	// Run traceroute to a public IP
+	cmd := exec.Command("traceroute", "-n", "-m", "10", "-w", "1", "-q", "1", "8.8.8.8")
+	output, err := cmd.Output()
+	if err != nil {
+		// Try tracepath as fallback
+		cmd = exec.Command("tracepath", "-n", "-m", "10", "8.8.8.8")
+		output, err = cmd.Output()
+		if err != nil {
+			return 1, ""
+		}
+	}
+
+	lines := strings.Split(string(output), "\n")
+	var privateHops []string
+	var firstPublicHop string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		// Extract IP from traceroute output
+		var hopIP string
+		for _, field := range fields {
+			if net.ParseIP(field) != nil {
+				hopIP = field
+				break
+			}
+		}
+
+		if hopIP == "" || hopIP == "*" {
+			continue
+		}
+
+		// Skip if it's our gateway (first hop)
+		if hopIP == gateway {
+			continue
+		}
+
+		// Check if this hop is private
+		if isPrivateIP(hopIP) || isCGNATRange(hopIP) {
+			privateHops = append(privateHops, hopIP)
+		} else if firstPublicHop == "" {
+			firstPublicHop = hopIP
+			break // Stop at first public IP
+		}
+	}
+
+	// NAT layers = number of private hops before reaching public internet + 1
+	natLayers := len(privateHops) + 1
+
+	// External router is the last private hop before public internet
+	var externalRouter string
+	if len(privateHops) > 0 {
+		externalRouter = privateHops[len(privateHops)-1]
+	}
+
+	return natLayers, externalRouter
 }
