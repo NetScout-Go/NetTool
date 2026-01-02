@@ -1,0 +1,71 @@
+{
+  "id": "demo_plugin",
+  "name": "Demo Plugin",
+  "description": "A demonstration plugin showcasing all available parameter types, formatted output displays, error handling, and dependency management.",
+  "version": "1.0.0",
+  "author": "NetTool",
+  "license": "MIT",
+  "icon": "flask-conical",
+  "requires": ["curl"],
+  "parameters": [
+    {
+      "id": "demo_mode",
+      "name": "Demo Mode",
+      "description": "Select what feature to demonstrate",
+      "type": "select",
+      "required": true,
+      "default": "metrics",
+      "options": [
+        { "value": "metrics", "label": "📊 Metrics Display" },
+        { "value": "table", "label": "📋 Table Display" },
+        { "value": "all", "label": "🎯 All Display Types" },
+        { "value": "error", "label": "❌ Error Handling" },
+        { "value": "warning", "label": "⚠️ Warnings Demo" }
+      ]
+    },
+    {
+      "id": "text_input",
+      "name": "Text Input",
+      "description": "Example text parameter",
+      "type": "string",
+      "required": false,
+      "default": "Hello NetTool!"
+    },
+    {
+      "id": "number_input",
+      "name": "Number Input",
+      "description": "Example number parameter (1-100)",
+      "type": "number",
+      "required": false,
+      "default": 42,
+      "min": 1,
+      "max": 100
+    },
+    {
+      "id": "range_input",
+      "name": "Range Slider",
+      "description": "Example range parameter with slider",
+      "type": "range",
+      "required": false,
+      "default": 50,
+      "min": 0,
+      "max": 100,
+      "step": 5
+    },
+    {
+      "id": "boolean_input",
+      "name": "Enable Extra Features",
+      "description": "Example boolean toggle parameter",
+      "type": "boolean",
+      "required": false,
+      "default": true
+    },
+    {
+      "id": "network_interface",
+      "name": "Network Interface",
+      "description": "Auto-detected interface selector",
+      "type": "string",
+      "required": false
+    }
+  ]
+}

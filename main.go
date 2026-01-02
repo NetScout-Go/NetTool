@@ -24,6 +24,9 @@ var (
 	Version   = "dev"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
+
+	// Security flags
+	SkipIntegrityCheck = false
 )
 
 var upgrader = websocket.Upgrader{
@@ -41,6 +44,8 @@ func main() {
 	// Parse command line flags
 	port := flag.Int("port", 8080, "Port to run the server on")
 	version := flag.Bool("version", false, "Show version information")
+	skipIntegrity := flag.Bool("skip-integrity", false, "Skip binary integrity verification")
+	showIntegrity := flag.Bool("integrity", false, "Show integrity verification status and exit")
 	flag.Parse()
 
 	// Show version if requested
@@ -49,6 +54,23 @@ func main() {
 		fmt.Printf("Build Time: %s\n", BuildTime)
 		fmt.Printf("Git Commit: %s\n", GitCommit)
 		os.Exit(0)
+	}
+
+	// Perform integrity verification
+	if !*skipIntegrity {
+		performIntegrityCheck(*showIntegrity)
+	} else {
+		log.Println("⚠️  Integrity verification skipped (--skip-integrity flag)")
+	}
+
+	// If only showing integrity status, exit
+	if *showIntegrity {
+		os.Exit(0)
+	}
+
+	// Perform anti-tamper checks
+	if !core.PerformAntiTamperChecks() {
+		log.Println("⚠️  Anti-tamper check warning: unusual runtime environment detected")
 	}
 
 	// Print startup banner
@@ -152,6 +174,24 @@ func main() {
 			networkInfo.Timestamp = time.Now()
 
 			c.JSON(http.StatusOK, networkInfo)
+		})
+
+		// Get binary integrity status
+		api.GET("/integrity", func(c *gin.Context) {
+			status := core.GetCachedIntegrityStatus()
+			if status == nil {
+				status = core.VerifyBinaryIntegrity()
+			}
+			c.JSON(http.StatusOK, status)
+		})
+
+		// Get binary information
+		api.GET("/binary-info", func(c *gin.Context) {
+			info := core.GetBinaryInfo()
+			info["version"] = Version
+			info["build_time"] = BuildTime
+			info["git_commit"] = GitCommit
+			c.JSON(http.StatusOK, info)
 		})
 
 		// Get network interfaces for auto-detection
@@ -732,4 +772,72 @@ npm run build
 	})
 
 	log.Printf("✅ React SPA configured to serve from %s", frontendDir)
+}
+
+// performIntegrityCheck verifies binary integrity at startup
+func performIntegrityCheck(showStatus bool) {
+	log.Println("🔐 Verifying binary integrity...")
+
+	status := core.VerifyBinaryIntegrity()
+
+	if showStatus {
+		fmt.Println("\n═══════════════════════════════════════")
+		fmt.Println("       NetTool Integrity Status")
+		fmt.Println("═══════════════════════════════════════")
+		fmt.Printf("Binary Path:    %s\n", status.BinaryPath)
+		fmt.Printf("Binary Size:    %d bytes\n", status.BinarySize)
+		fmt.Printf("Platform:       %s/%s\n", status.RuntimeOS, status.RuntimeArch)
+		fmt.Printf("Checked At:     %s\n", status.CheckedAt)
+		fmt.Printf("Source:         %s\n", status.Source)
+		fmt.Println("───────────────────────────────────────")
+
+		if status.ActualHash != "" {
+			fmt.Printf("Actual Hash:    %s\n", status.ActualHash)
+		}
+		if status.ExpectedHash != "" {
+			fmt.Printf("Expected Hash:  %s\n", status.ExpectedHash)
+		}
+
+		fmt.Println("───────────────────────────────────────")
+		if status.Verified {
+			fmt.Println("Status:         ✅ VERIFIED")
+		} else {
+			fmt.Println("Status:         ❌ VERIFICATION FAILED")
+			if status.TamperDetected {
+				fmt.Println("                ⚠️  POSSIBLE TAMPERING DETECTED")
+			}
+		}
+
+		if status.Error != "" {
+			fmt.Printf("Note:           %s\n", status.Error)
+		}
+		fmt.Println("═══════════════════════════════════════\n")
+		return
+	}
+
+	// Normal startup logging
+	switch status.Source {
+	case "embedded":
+		if status.Verified {
+			log.Println("✅ Binary integrity verified (embedded hash)")
+		} else {
+			log.Println("❌ Binary integrity check FAILED - hash mismatch!")
+			log.Println("⚠️  The binary may have been modified. Use --skip-integrity to bypass.")
+		}
+	case "github":
+		if status.Verified {
+			log.Println("✅ Binary integrity verified (GitHub release)")
+		} else {
+			log.Println("❌ Binary integrity check FAILED - hash mismatch!")
+			log.Println("⚠️  The binary does not match the official release.")
+		}
+	case "skipped":
+		log.Println("ℹ️  Integrity verification disabled")
+	case "unavailable":
+		log.Println("ℹ️  No reference hash available for verification")
+	default:
+		if status.Error != "" {
+			log.Printf("⚠️  Integrity check error: %s", status.Error)
+		}
+	}
 }

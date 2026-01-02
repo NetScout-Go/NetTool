@@ -90,24 +90,58 @@ jobs:
           echo "commit=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
-      - name: Build binary
+      - name: Build binary (hardened)
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           GOARM: ${{ matrix.goarm }}
           CGO_ENABLED: '0'
         run: |
-          LDFLAGS="-w -s"
+          # Hardened build flags for security and size optimization
+          # -w: Omit DWARF symbol table
+          # -s: Omit symbol table and debug information
+          # -buildid=: Remove build ID (reduces uniqueness for analysis)
+          # -trimpath: Remove file system paths from binary
+          LDFLAGS="-w -s -buildid="
           LDFLAGS="$LDFLAGS -X main.Version=${{ steps.version.outputs.version }}"
           LDFLAGS="$LDFLAGS -X main.BuildTime=${{ steps.version.outputs.build_time }}"
           LDFLAGS="$LDFLAGS -X main.GitCommit=${{ steps.version.outputs.commit }}"
           LDFLAGS="$LDFLAGS -X github.com/gin-gonic/gin.Mode=release"
+          LDFLAGS="$LDFLAGS -X github.com/NetScout-Go/NetTool/app/core.IntegrityEnabled=true"
           
-          echo "Building NetTool for ${{ matrix.name }} (beta)..."
-          go build -ldflags "$LDFLAGS" -trimpath -o nettool ./main.go
+          # Build tags for static compilation
+          BUILD_TAGS="netgo,osusergo"
+          
+          echo "Building NetTool for ${{ matrix.name }} (hardened beta)..."
+          go build -a -trimpath -installsuffix cgo -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o nettool ./main.go
           
           echo "Building CLI tool..."
-          go build -ldflags "$LDFLAGS" -trimpath -o nettool-iterate ./app/cmd/iterate/main.go
+          go build -a -trimpath -installsuffix cgo -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o nettool-iterate ./app/cmd/iterate/main.go
+
+      - name: Strip binaries (additional size reduction)
+        run: |
+          # Strip for x86 targets
+          if [ "${{ matrix.goarch }}" = "amd64" ] || [ "${{ matrix.goarch }}" = "386" ]; then
+            strip --strip-all nettool 2>/dev/null || true
+            strip --strip-all nettool-iterate 2>/dev/null || true
+          fi
+
+      - name: Generate checksums
+        id: checksums
+        run: |
+          # Generate SHA256 checksums for binaries
+          MAIN_HASH=$(sha256sum nettool | cut -d' ' -f1)
+          CLI_HASH=$(sha256sum nettool-iterate | cut -d' ' -f1)
+          
+          echo "main_hash=$MAIN_HASH" >> $GITHUB_OUTPUT
+          echo "cli_hash=$CLI_HASH" >> $GITHUB_OUTPUT
+          
+          # Create checksums file
+          echo "$MAIN_HASH  nettool" > SHA256SUMS
+          echo "$CLI_HASH  nettool-iterate" >> SHA256SUMS
+          
+          echo "Generated checksums:"
+          cat SHA256SUMS
 
       - name: Prepare package
         run: |
@@ -116,13 +150,15 @@ jobs:
           
           cp nettool package/
           cp nettool-iterate package/
+          cp SHA256SUMS package/
           cp -r frontend/dist/* package/frontend/dist/
           cp app/plugins/config.json.example package/app/plugins/
           [ -f app/plugins/config.json ] && cp app/plugins/config.json package/app/plugins/ || true
+          [ -d app/plugins/plugins/demo_plugin ] && cp -r app/plugins/plugins/demo_plugin package/app/plugins/plugins/ || true
           cp README.md package/ || true
           cp LICENSE package/ || true
           
-          # Create install script
+          # Create install script with integrity verification
           cat > package/install.sh << 'INSTALL_EOF'
           #!/bin/bash
           set -e
@@ -135,6 +171,24 @@ jobs:
               echo "❌ Please run as root (use sudo)"
               exit 1
           fi
+          
+          # Verify checksums before installation
+          echo "🔐 Verifying binary integrity..."
+          if [ -f SHA256SUMS ]; then
+              if sha256sum -c SHA256SUMS --status 2>/dev/null; then
+                  echo "✅ Checksums verified"
+              else
+                  echo "⚠️  Checksum verification failed! Binaries may have been modified."
+                  read -p "Continue anyway? (y/N) " -n 1 -r
+                  echo
+                  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                      exit 1
+                  fi
+              fi
+          else
+              echo "⚠️  No checksums file found, skipping verification"
+          fi
+          
           if ! getent group $GROUP >/dev/null; then
               groupadd --system $GROUP
           fi
@@ -159,6 +213,13 @@ jobs:
           ExecStart=/opt/nettool/nettool --port=8080
           Restart=always
           RestartSec=5
+          NoNewPrivileges=true
+          PrivateTmp=true
+          ProtectSystem=strict
+          ProtectHome=true
+          ReadWritePaths=/opt/nettool
+          CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+          AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
           [Install]
           WantedBy=multi-user.target
           SERVICE_EOF
@@ -168,6 +229,8 @@ jobs:
           echo "   Start: sudo systemctl start nettool"
           echo "   Logs:  sudo journalctl -u nettool -f"
           echo "   Web:   http://localhost:8080"
+          echo ""
+          echo "🔐 Verify integrity anytime: nettool --integrity"
           INSTALL_EOF
           chmod +x package/install.sh
 
@@ -181,6 +244,13 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}-beta.tar.gz
+          retention-days: 7
+
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ matrix.artifact }}
+          path: SHA256SUMS
           retention-days: 7
 
   update-beta-release:
@@ -213,6 +283,38 @@ jobs:
           find artifacts -name "*.tar.gz" -exec mv {} release-files/ \;
           ls -la release-files/
 
+      - name: Generate combined checksums
+        run: |
+          cd release-files
+          
+          # Create checksums.json manifest
+          echo '{' > checksums.json
+          echo '  "version": "beta-${{ steps.info.outputs.sha_short }}",' >> checksums.json
+          echo '  "build_time": "${{ steps.info.outputs.date }}T${{ steps.info.outputs.time }}Z",' >> checksums.json
+          echo '  "hashes": {' >> checksums.json
+          
+          FIRST=true
+          for file in *.tar.gz; do
+            HASH=$(sha256sum "$file" | cut -d' ' -f1)
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              echo ',' >> checksums.json
+            fi
+            echo -n "    \"$file\": \"$HASH\"" >> checksums.json
+          done
+          
+          echo '' >> checksums.json
+          echo '  }' >> checksums.json
+          echo '}' >> checksums.json
+          
+          # Also create traditional SHA256SUMS file
+          sha256sum *.tar.gz > SHA256SUMS
+          
+          echo "Generated checksums:"
+          cat checksums.json
+          cd ..
+
       - name: Delete existing beta tag and release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -237,6 +339,12 @@ jobs:
             - 🔖 Commit: [`${{ steps.info.outputs.sha_short }}`](https://github.com/${{ github.repository }}/commit/${{ steps.info.outputs.sha_full }})
             - 💬 Message: ${{ steps.info.outputs.commit_msg }}
             
+            **🔐 Security Features:**
+            - Debug symbols stripped for smaller size
+            - Build paths removed for privacy
+            - Integrity verification enabled (`nettool --integrity`)
+            - SHA256 checksums included
+            
             **Downloads:**
             | Platform | File |
             |----------|------|
@@ -244,10 +352,22 @@ jobs:
             | Linux x32 | `nettool-linux-386-beta.tar.gz` |
             | Pi Zero (ARMv6) | `nettool-linux-arm6-beta.tar.gz` |
             
+            **Verify your download:**
+            ```bash
+            # Download and verify checksums
+            curl -sL https://github.com/${{ github.repository }}/releases/download/beta/SHA256SUMS | sha256sum -c
+            
+            # Or verify after installation
+            nettool --integrity
+            ```
+            
             ---
             
             > 💡 For stable releases, check the [Releases](https://github.com/${{ github.repository }}/releases) page.
-          files: release-files/*.tar.gz
+          files: |
+            release-files/*.tar.gz
+            release-files/checksums.json
+            release-files/SHA256SUMS
           prerelease: true
           draft: false
           make_latest: false

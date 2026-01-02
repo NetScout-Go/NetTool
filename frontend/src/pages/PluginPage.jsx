@@ -298,9 +298,179 @@ function ParameterInput({ param, value, onChange, error }) {
   }
 }
 
+// Format bytes to human readable
+function formatBytes(bytes) {
+  if (bytes === 0 || bytes === undefined || bytes === null) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+// Get color class from color name
+function getColorClass(color, type = 'text') {
+  const colorMap = {
+    primary: type === 'bg' ? 'bg-primary-500/20' : 'text-primary-400',
+    cyan: type === 'bg' ? 'bg-cyan-500/20' : 'text-cyan-400',
+    green: type === 'bg' ? 'bg-green-500/20' : 'text-green-400',
+    orange: type === 'bg' ? 'bg-orange-500/20' : 'text-orange-400',
+    purple: type === 'bg' ? 'bg-purple-500/20' : 'text-purple-400',
+    red: type === 'bg' ? 'bg-red-500/20' : 'text-red-400',
+    yellow: type === 'bg' ? 'bg-yellow-500/20' : 'text-yellow-400',
+    blue: type === 'bg' ? 'bg-blue-500/20' : 'text-blue-400',
+  }
+  return colorMap[color] || (type === 'bg' ? 'bg-dark-700/50' : 'text-dark-300')
+}
+
+// Render a metric item
+function MetricItem({ metric }) {
+  const colorClass = metric.color ? getColorClass(metric.color) : 'text-white'
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-dark-800/30 last:border-0">
+      <span className="text-dark-400 text-sm">{metric.label}</span>
+      <span className={`font-medium ${colorClass}`}>
+        {metric.value !== undefined && metric.value !== null && metric.value !== '' 
+          ? String(metric.value) 
+          : '--'}
+        {metric.unit && <span className="text-dark-500 ml-1">{metric.unit}</span>}
+      </span>
+    </div>
+  )
+}
+
+// Render a display section based on type
+function DisplaySection({ section }) {
+  const bgClass = getColorClass(section.color, 'bg')
+  const textClass = getColorClass(section.color)
+
+  // Metrics display
+  if (section.type === 'metrics' && section.metrics) {
+    return (
+      <div className="bg-dark-900/30 rounded-xl p-4 border border-dark-800/50">
+        <div className="flex items-center gap-2 mb-4">
+          <div className={`p-2 rounded-lg ${bgClass}`}>
+            <span className={textClass}>●</span>
+          </div>
+          <h4 className="font-semibold text-white">{section.title}</h4>
+        </div>
+        <div className="space-y-1">
+          {section.metrics.map((metric, idx) => (
+            <MetricItem key={idx} metric={metric} />
+          ))}
+        </div>
+        {section.extra?.progress !== undefined && (
+          <div className="mt-3">
+            <div className="h-2 bg-dark-800 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all ${
+                  section.extra.progress > 90 ? 'bg-red-500' :
+                  section.extra.progress > 70 ? 'bg-orange-500' :
+                  'bg-green-500'
+                }`}
+                style={{ width: `${Math.min(section.extra.progress, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Table display
+  if (section.type === 'table' && section.columns && section.data) {
+    return (
+      <div className="bg-dark-900/30 rounded-xl p-4 border border-dark-800/50 overflow-x-auto">
+        <div className="flex items-center gap-2 mb-4">
+          <div className={`p-2 rounded-lg ${bgClass}`}>
+            <span className={textClass}>●</span>
+          </div>
+          <h4 className="font-semibold text-white">{section.title}</h4>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-dark-700">
+              {section.columns.map((col, idx) => (
+                <th key={idx} className="text-left py-2 px-3 text-dark-400 font-medium">
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {section.data.map((row, rowIdx) => (
+              <tr key={rowIdx} className="border-b border-dark-800/30 hover:bg-dark-800/20">
+                {section.columns.map((col, colIdx) => {
+                  let value = row[col.key]
+                  let cellClass = 'text-dark-200'
+                  
+                  // Format based on type
+                  if (col.type === 'bytes' && typeof value === 'number') {
+                    value = formatBytes(value)
+                  } else if (col.type === 'status') {
+                    const isUp = value === 'up' || value === 'active' || value === 'connected'
+                    cellClass = isUp ? 'text-green-400' : 'text-red-400'
+                    value = (
+                      <span className="flex items-center gap-1">
+                        <span className={`w-2 h-2 rounded-full ${isUp ? 'bg-green-400' : 'bg-red-400'}`} />
+                        {value}
+                      </span>
+                    )
+                  } else if (col.type === 'progress') {
+                    const pct = typeof value === 'number' ? value : 0
+                    const color = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-orange-500' : 'bg-green-500'
+                    value = (
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-dark-700 rounded-full overflow-hidden">
+                          <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs">{pct.toFixed(1)}%</span>
+                      </div>
+                    )
+                  }
+                  
+                  return (
+                    <td key={colIdx} className={`py-2 px-3 ${cellClass}`}>
+                      {value !== undefined && value !== null && value !== '' ? value : '--'}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  // List display
+  if (section.type === 'list' && section.data) {
+    return (
+      <div className="bg-dark-900/30 rounded-xl p-4 border border-dark-800/50">
+        <div className="flex items-center gap-2 mb-4">
+          <div className={`p-2 rounded-lg ${bgClass}`}>
+            <span className={textClass}>●</span>
+          </div>
+          <h4 className="font-semibold text-white">{section.title}</h4>
+        </div>
+        <ul className="space-y-2">
+          {(Array.isArray(section.data) ? section.data : []).map((item, idx) => (
+            <li key={idx} className="flex items-center gap-2 text-dark-200">
+              <span className={`w-1.5 h-1.5 rounded-full ${getColorClass(section.color, 'bg').replace('/20', '')}`} />
+              {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  return null
+}
+
 // Result renderer component
 function ResultRenderer({ result, pluginId }) {
   const [copied, setCopied] = useState(false)
+  const [showRaw, setShowRaw] = useState(false)
 
   const copyToClipboard = useCallback(async () => {
     try {
@@ -326,6 +496,13 @@ function ResultRenderer({ result, pluginId }) {
 
   if (!result) return null
 
+  // Check if result has formatted display data
+  const displaySections = result.data?._display || result.data?.Display || []
+  const hasFormattedDisplay = displaySections.length > 0
+  const executionTime = result.data?.executionTime || result.data?.ExecutionTime
+  const warnings = result.data?.warnings || result.data?.Warnings || []
+  const depStatus = result.data?.dependencyStatus || result.data?.DependencyStatus || []
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -343,26 +520,98 @@ function ResultRenderer({ result, pluginId }) {
           <span className="font-medium">
             {result.success ? 'Execution Successful' : 'Execution Failed'}
           </span>
+          {executionTime && (
+            <span className="text-dark-500 text-sm ml-2">({executionTime})</span>
+          )}
         </div>
         
-        <div className="flex items-center gap-2 text-xs text-dark-400">
-          <Clock className="w-4 h-4" />
-          {result.timestamp?.toLocaleTimeString()}
+        <div className="flex items-center gap-2">
+          {hasFormattedDisplay && (
+            <button
+              onClick={() => setShowRaw(!showRaw)}
+              className="px-3 py-1 text-xs rounded-lg bg-dark-800/50 hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
+            >
+              {showRaw ? 'Show Formatted' : 'Show Raw'}
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-xs text-dark-400">
+            <Clock className="w-4 h-4" />
+            {result.timestamp?.toLocaleTimeString()}
+          </div>
         </div>
       </div>
 
-      {/* Error message */}
-      {result.error && (
-        <div className="p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400">
-          {result.error}
+      {/* Warnings */}
+      {warnings.length > 0 && (
+        <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+          <div className="flex items-center gap-2 text-yellow-400 mb-2">
+            <AlertCircle className="w-4 h-4" />
+            <span className="font-medium text-sm">Warnings</span>
+          </div>
+          <ul className="space-y-1">
+            {warnings.map((warning, idx) => (
+              <li key={idx} className="text-sm text-yellow-300/80 flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-yellow-400" />
+                {warning}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
-      {/* Result data */}
-      {result.data && (
+      {/* Dependency Status */}
+      {depStatus.length > 0 && depStatus.some(d => !d.installed) && (
+        <div className="p-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+          <div className="flex items-center gap-2 text-dark-300 mb-2">
+            <Settings className="w-4 h-4" />
+            <span className="font-medium text-sm">Dependencies</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {depStatus.map((dep, idx) => (
+              <span 
+                key={idx} 
+                className={`px-2 py-1 rounded text-xs ${
+                  dep.installed 
+                    ? 'bg-green-500/20 text-green-400' 
+                    : 'bg-red-500/20 text-red-400'
+                }`}
+                title={dep.installed ? dep.version : dep.installCmd}
+              >
+                {dep.installed ? '✓' : '✗'} {dep.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Error message */}
+      {result.error && (
+        <div className="p-4 bg-red-500/20 border border-red-500/30 rounded-xl">
+          <div className="flex items-center gap-2 text-red-400 mb-1">
+            <AlertCircle className="w-4 h-4" />
+            <span className="font-medium">{result.data?.errorCode || 'Error'}</span>
+          </div>
+          <p className="text-red-400">{result.error}</p>
+          {result.data?.errorDetails && (
+            <p className="text-red-400/70 text-sm mt-2">{result.data.errorDetails}</p>
+          )}
+        </div>
+      )}
+
+      {/* Formatted display sections */}
+      {hasFormattedDisplay && !showRaw && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {displaySections.map((section, idx) => (
+            <DisplaySection key={idx} section={section} />
+          ))}
+        </div>
+      )}
+
+      {/* Raw JSON display */}
+      {result.data && (!hasFormattedDisplay || showRaw) && (
         <div className="relative">
           {/* Action buttons */}
-          <div className="absolute top-3 right-3 flex gap-2">
+          <div className="absolute top-3 right-3 flex gap-2 z-10">
             <button
               onClick={copyToClipboard}
               className="p-2 rounded-lg bg-dark-800/50 hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"

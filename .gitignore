@@ -37,6 +37,7 @@ app/plugins/config.json
 # Plugin directories (keep structure but ignore content)
 app/plugins/plugins/*
 !app/plugins/plugins/.gitkeep
+!app/plugins/plugins/demo_plugin/
 
 # Development files
 arp_lib/
@@ -83,3 +84,6 @@ node_modules/
 
 #Ignore insiders AI rules
 .github\instructions\codacy.instructions.md
+
+build-secure.ps1
+build-secure.sh
