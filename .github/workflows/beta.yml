@@ -75,6 +75,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Install UPX (for compression)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx-ucl
+
       - name: Download frontend artifact
         uses: actions/download-artifact@v4
         with:
@@ -97,26 +102,43 @@ jobs:
           GOARM: ${{ matrix.goarm }}
           CGO_ENABLED: '0'
         run: |
-          # Hardened build flags for security and size optimization
-          # -w: Omit DWARF symbol table
+          # Maximum size reduction and security hardening flags
+          # -w: Omit DWARF symbol table (debug info)
           # -s: Omit symbol table and debug information
-          # -buildid=: Remove build ID (reduces uniqueness for analysis)
+          # -buildid=: Remove build ID (reduces binary analysis)
           # -trimpath: Remove file system paths from binary
-          LDFLAGS="-w -s -buildid="
+          # -extldflags "-static": Ensure static linking
+          LDFLAGS="-w -s -buildid= -extldflags '-static'"
           LDFLAGS="$LDFLAGS -X main.Version=${{ steps.version.outputs.version }}"
           LDFLAGS="$LDFLAGS -X main.BuildTime=${{ steps.version.outputs.build_time }}"
           LDFLAGS="$LDFLAGS -X main.GitCommit=${{ steps.version.outputs.commit }}"
           LDFLAGS="$LDFLAGS -X github.com/gin-gonic/gin.Mode=release"
           LDFLAGS="$LDFLAGS -X github.com/NetScout-Go/NetTool/app/core.IntegrityEnabled=true"
           
-          # Build tags for static compilation
+          # Build tags for static compilation and optimizations
+          # netgo: Use Go's network stack (no cgo)
+          # osusergo: Use Go's user lookup (no cgo)
           BUILD_TAGS="netgo,osusergo"
           
+          # Additional GC flags for smaller binaries
+          export GOGC=off
+          
           echo "Building NetTool for ${{ matrix.name }} (hardened beta)..."
-          go build -a -trimpath -installsuffix cgo -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o nettool ./main.go
+          go build -a -trimpath -installsuffix cgo \
+            -tags "$BUILD_TAGS" \
+            -ldflags "$LDFLAGS" \
+            -gcflags=all="-l -B" \
+            -o nettool ./main.go
           
           echo "Building CLI tool..."
-          go build -a -trimpath -installsuffix cgo -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o nettool-iterate ./app/cmd/iterate/main.go
+          go build -a -trimpath -installsuffix cgo \
+            -tags "$BUILD_TAGS" \
+            -ldflags "$LDFLAGS" \
+            -gcflags=all="-l -B" \
+            -o nettool-iterate ./app/cmd/iterate/main.go
+          
+          echo "Initial binary sizes:"
+          ls -lh nettool nettool-iterate
 
       - name: Strip binaries (additional size reduction)
         run: |
@@ -124,7 +146,31 @@ jobs:
           if [ "${{ matrix.goarch }}" = "amd64" ] || [ "${{ matrix.goarch }}" = "386" ]; then
             strip --strip-all nettool 2>/dev/null || true
             strip --strip-all nettool-iterate 2>/dev/null || true
+            echo "After strip:"
+            ls -lh nettool nettool-iterate
           fi
+
+      - name: Compress binaries with UPX
+        run: |
+          # UPX compression for maximum size reduction
+          # --best: Best compression (slower)
+          # --lzma: Use LZMA compression (best ratio)
+          # Note: UPX may not work well with all ARM variants
+          
+          echo "Compressing with UPX..."
+          
+          if [ "${{ matrix.goarch }}" = "arm" ]; then
+            # ARM may have issues with UPX, use safer settings
+            upx --best nettool 2>/dev/null || echo "UPX failed for nettool (ARM), skipping"
+            upx --best nettool-iterate 2>/dev/null || echo "UPX failed for nettool-iterate (ARM), skipping"
+          else
+            # x86/x64 - use maximum compression
+            upx --best --lzma nettool 2>/dev/null || upx --best nettool 2>/dev/null || echo "UPX failed for nettool, skipping"
+            upx --best --lzma nettool-iterate 2>/dev/null || upx --best nettool-iterate 2>/dev/null || echo "UPX failed for nettool-iterate, skipping"
+          fi
+          
+          echo "Final binary sizes after compression:"
+          ls -lh nettool nettool-iterate
 
       - name: Generate checksums
         id: checksums

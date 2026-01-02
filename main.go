@@ -68,6 +68,18 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Apply runtime protection measures
+	core.RuntimeProtection()
+
+	// Perform comprehensive security checks
+	securityResult := core.PerformSecurityChecks()
+	if !securityResult.Passed {
+		log.Println("⚠️  Security check warnings detected")
+		for _, anomaly := range securityResult.Anomalies {
+			log.Printf("   - %s", anomaly)
+		}
+	}
+
 	// Perform anti-tamper checks
 	if !core.PerformAntiTamperChecks() {
 		log.Println("⚠️  Anti-tamper check warning: unusual runtime environment detected")
@@ -192,6 +204,12 @@ func main() {
 			info["build_time"] = BuildTime
 			info["git_commit"] = GitCommit
 			c.JSON(http.StatusOK, info)
+		})
+
+		// Get security status
+		api.GET("/security", func(c *gin.Context) {
+			result := core.PerformSecurityChecks()
+			c.JSON(http.StatusOK, result)
 		})
 
 		// Get network interfaces for auto-detection
@@ -775,6 +793,7 @@ npm run build
 }
 
 // performIntegrityCheck verifies binary integrity at startup
+// If verification fails or cannot be performed, the binary will NOT run
 func performIntegrityCheck(showStatus bool) {
 	log.Println("🔐 Verifying binary integrity...")
 
@@ -811,33 +830,56 @@ func performIntegrityCheck(showStatus bool) {
 		if status.Error != "" {
 			fmt.Printf("Note:           %s\n", status.Error)
 		}
+
+		if status.ShouldBlock {
+			fmt.Println("───────────────────────────────────────")
+			fmt.Println("⛔ Binary will NOT run without verification")
+			fmt.Println("   Use --skip-integrity to bypass (at your own risk)")
+		}
 		fmt.Println("═══════════════════════════════════════\n")
 		return
 	}
 
-	// Normal startup logging
+	// CRITICAL: Block execution if integrity check fails
+	if status.ShouldBlock {
+		switch status.Source {
+		case "embedded":
+			log.Println("❌ INTEGRITY CHECK FAILED - Binary modified!")
+			log.Println("⚠️  The binary hash does not match the embedded hash.")
+			log.Println("⚠️  This binary may have been tampered with.")
+		case "github-release", "github-beta":
+			log.Println("❌ INTEGRITY CHECK FAILED - Binary modified!")
+			log.Println("⚠️  The binary hash does not match the official release.")
+			log.Println("⚠️  This binary may have been compromised.")
+		case "blocked":
+			log.Println("❌ INTEGRITY CHECK FAILED - Cannot verify binary!")
+			log.Println("⚠️  No trusted hash source available (embedded or GitHub).")
+			log.Println("⚠️  This may be a development build or network is offline.")
+		default:
+			log.Println("❌ INTEGRITY CHECK FAILED")
+			if status.Error != "" {
+				log.Printf("⚠️  Error: %s", status.Error)
+			}
+		}
+
+		log.Println("")
+		log.Println("⛔ For security, this binary will NOT run.")
+		log.Println("   If you trust this binary, use --skip-integrity to bypass.")
+		log.Println("   WARNING: Running unverified binaries is a security risk!")
+		os.Exit(1)
+	}
+
+	// Verification passed
 	switch status.Source {
 	case "embedded":
-		if status.Verified {
-			log.Println("✅ Binary integrity verified (embedded hash)")
-		} else {
-			log.Println("❌ Binary integrity check FAILED - hash mismatch!")
-			log.Println("⚠️  The binary may have been modified. Use --skip-integrity to bypass.")
-		}
-	case "github":
-		if status.Verified {
-			log.Println("✅ Binary integrity verified (GitHub release)")
-		} else {
-			log.Println("❌ Binary integrity check FAILED - hash mismatch!")
-			log.Println("⚠️  The binary does not match the official release.")
-		}
+		log.Println("✅ Binary integrity verified (embedded hash)")
+	case "github-release":
+		log.Println("✅ Binary integrity verified (official release)")
+	case "github-beta":
+		log.Println("✅ Binary integrity verified (beta release)")
 	case "skipped":
-		log.Println("ℹ️  Integrity verification disabled")
-	case "unavailable":
-		log.Println("ℹ️  No reference hash available for verification")
+		log.Println("ℹ️  Integrity verification disabled at compile time")
 	default:
-		if status.Error != "" {
-			log.Printf("⚠️  Integrity check error: %s", status.Error)
-		}
+		log.Printf("✅ Binary integrity verified (source: %s)", status.Source)
 	}
 }

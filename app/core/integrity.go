@@ -2,15 +2,18 @@
 package core
 
 import (
+	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,12 +29,26 @@ var (
 	IntegrityEnabled = "true"
 )
 
+// Trusted DNS servers for verification
+// We use multiple independent DNS providers to detect DNS spoofing
+var trustedDNSServers = []string{
+	"8.8.8.8:53",        // Google Primary
+	"8.8.4.4:53",        // Google Secondary
+	"1.1.1.1:53",        // Cloudflare Primary
+	"1.0.0.1:53",        // Cloudflare Secondary
+	"9.9.9.9:53",        // Quad9
+	"208.67.222.222:53", // OpenDNS
+}
+
+// Minimum number of DNS servers that must agree on the IP
+const minDNSConsensus = 3
+
 // IntegrityStatus represents the result of an integrity check
 type IntegrityStatus struct {
 	Verified       bool   `json:"verified"`
 	ExpectedHash   string `json:"expected_hash,omitempty"`
 	ActualHash     string `json:"actual_hash,omitempty"`
-	Source         string `json:"source"` // "embedded", "github", "skipped"
+	Source         string `json:"source"` // "embedded", "github", "blocked", "skipped"
 	Error          string `json:"error,omitempty"`
 	CheckedAt      string `json:"checked_at"`
 	BinaryPath     string `json:"binary_path"`
@@ -39,6 +56,7 @@ type IntegrityStatus struct {
 	RuntimeOS      string `json:"runtime_os"`
 	RuntimeArch    string `json:"runtime_arch"`
 	TamperDetected bool   `json:"tamper_detected"`
+	ShouldBlock    bool   `json:"should_block"` // If true, binary should not run
 }
 
 // GitHubReleaseAsset represents a release asset from GitHub API
@@ -68,6 +86,8 @@ var (
 )
 
 // VerifyBinaryIntegrity performs a comprehensive integrity check
+// It only trusts the embedded hash or GitHub releases as sources of truth.
+// Local files are NEVER trusted as they can be modified by attackers.
 func VerifyBinaryIntegrity() *IntegrityStatus {
 	integrityMutex.Lock()
 	defer integrityMutex.Unlock()
@@ -76,6 +96,7 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 		CheckedAt:   time.Now().UTC().Format(time.RFC3339),
 		RuntimeOS:   runtime.GOOS,
 		RuntimeArch: runtime.GOARCH,
+		ShouldBlock: false,
 	}
 
 	// Get the binary path
@@ -83,6 +104,7 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 	if err != nil {
 		status.Error = fmt.Sprintf("failed to get executable path: %v", err)
 		status.Source = "error"
+		status.ShouldBlock = true
 		return status
 	}
 	status.BinaryPath = execPath
@@ -92,12 +114,13 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 	if err != nil {
 		status.Error = fmt.Sprintf("failed to stat binary: %v", err)
 		status.Source = "error"
+		status.ShouldBlock = true
 		return status
 	}
 	status.BinarySize = fileInfo.Size()
 
-	// Check if integrity verification is disabled
-	if strings.ToLower(IntegrityEnabled) != "true" {
+	// Check if integrity verification is disabled at compile time
+	if IntegrityEnabled != "true" {
 		status.Source = "skipped"
 		status.Verified = true
 		return status
@@ -108,100 +131,63 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 	if err != nil {
 		status.Error = fmt.Sprintf("failed to calculate hash: %v", err)
 		status.Source = "error"
+		status.ShouldBlock = true
 		return status
 	}
 	status.ActualHash = actualHash
 
-	// Try embedded hash first
+	// PRIORITY 1: Try embedded hash (compiled into binary - most trusted)
+	// This is set at build time and cannot be modified without recompiling
 	if BinaryHash != "" {
 		status.ExpectedHash = BinaryHash
 		status.Source = "embedded"
 		status.Verified = actualHash == BinaryHash
 		if !status.Verified {
 			status.TamperDetected = true
+			status.ShouldBlock = true
+			status.Error = "binary has been modified - hash mismatch with embedded hash"
 		}
 		cachedStatus = status
 		integrityChecked = true
 		return status
 	}
 
-	// Try local SHA256SUMS file (included in the distribution package)
-	localHash, err := fetchHashFromLocalFile(execPath)
-	if err == nil && localHash != "" {
-		status.ExpectedHash = localHash
-		status.Source = "local"
-		status.Verified = actualHash == localHash
-		if !status.Verified {
-			status.TamperDetected = true
-		}
-		cachedStatus = status
-		integrityChecked = true
-		return status
-	}
-
-	// Try fetching hash from GitHub (for tar.gz verification - less reliable for binary)
-	githubHash, err := fetchHashFromGitHub()
+	// PRIORITY 2: Fetch hash from GitHub releases (remote trusted source)
+	// This is the ONLY external source we trust - NOT local files
+	githubHash, source, err := fetchHashFromGitHub()
 	if err == nil && githubHash != "" {
 		status.ExpectedHash = githubHash
-		status.Source = "github"
+		status.Source = source // "github-release" or "github-beta"
 		status.Verified = actualHash == githubHash
 		if !status.Verified {
 			status.TamperDetected = true
+			status.ShouldBlock = true
+			status.Error = "binary has been modified - hash mismatch with official release"
 		}
 		cachedStatus = status
 		integrityChecked = true
 		return status
 	}
 
-	// No hash available for verification
-	status.Source = "unavailable"
-	status.Verified = true // Can't verify without reference hash
-	status.Error = "no reference hash available"
+	// NO TRUSTED HASH AVAILABLE
+	// This could be:
+	// 1. Development build (no hash embedded)
+	// 2. Network offline (can't reach GitHub)
+	// 3. Custom build from source
+	//
+	// For security, we block execution if no trusted hash is available
+	// Users must use --skip-integrity flag to bypass (at their own risk)
+	status.Source = "blocked"
+	status.Verified = false
+	status.ShouldBlock = true
+	status.Error = "no trusted hash source available - cannot verify binary integrity"
+	if err != nil {
+		status.Error = fmt.Sprintf("no trusted hash source available: %v", err)
+	}
 	cachedStatus = status
 	integrityChecked = true
 
 	return status
-}
-
-// fetchHashFromLocalFile looks for SHA256SUMS file in the binary's directory
-func fetchHashFromLocalFile(execPath string) (string, error) {
-	// Get the directory containing the binary
-	execDir := filepath.Dir(execPath)
-	execName := filepath.Base(execPath)
-
-	// Remove .exe extension for matching on Windows
-	baseName := strings.TrimSuffix(execName, ".exe")
-
-	// Look for SHA256SUMS file in the same directory
-	sha256sumsPath := filepath.Join(execDir, "SHA256SUMS")
-
-	content, err := os.ReadFile(sha256sumsPath)
-	if err != nil {
-		return "", err
-	}
-
-	// Parse SHA256SUMS format: "hash  filename"
-	lines := strings.Split(string(content), "\n")
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			hash := parts[0]
-			filename := parts[len(parts)-1]
-
-			// Match against binary name (with or without extension)
-			if filename == execName || filename == baseName || filename == "nettool" {
-				return hash, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("no hash found for %s in SHA256SUMS", execName)
 }
 
 // GetCachedIntegrityStatus returns the cached integrity status
@@ -228,23 +214,176 @@ func calculateBinaryHash(path string) (string, error) {
 }
 
 // fetchHashFromGitHub fetches the hash manifest from GitHub releases
-func fetchHashFromGitHub() (string, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	// Try multiple release endpoints: latest stable, then beta
-	releaseURLs := []string{
-		"https://api.github.com/repos/NetScout-Go/NetTool/releases/latest",
-		"https://api.github.com/repos/NetScout-Go/NetTool/releases/tags/beta",
+// Returns: hash, source name, error
+func fetchHashFromGitHub() (string, string, error) {
+	// First, verify DNS resolution using multiple trusted DNS servers
+	// This protects against DNS spoofing attacks
+	verifiedIPs, err := verifyDNSResolution("api.github.com")
+	if err != nil {
+		return "", "", fmt.Errorf("DNS verification failed: %v", err)
 	}
 
-	for _, releaseURL := range releaseURLs {
-		hash, err := tryFetchHashFromRelease(client, releaseURL)
+	// Create HTTP client that uses our verified IPs
+	client := createSecureHTTPClient(verifiedIPs)
+
+	// Try multiple release endpoints: latest stable first, then beta
+	releaseEndpoints := []struct {
+		URL        string
+		SourceName string
+	}{
+		{"https://api.github.com/repos/NetScout-Go/NetTool/releases/latest", "github-release"},
+		{"https://api.github.com/repos/NetScout-Go/NetTool/releases/tags/beta", "github-beta"},
+	}
+
+	var lastErr error
+	for _, endpoint := range releaseEndpoints {
+		hash, err := tryFetchHashFromRelease(client, endpoint.URL)
 		if err == nil && hash != "" {
-			return hash, nil
+			return hash, endpoint.SourceName, nil
+		}
+		lastErr = err
+	}
+
+	return "", "", fmt.Errorf("no hash manifest found in any release: %v", lastErr)
+}
+
+// verifyDNSResolution queries multiple trusted DNS servers and ensures consensus
+// Returns verified IPs only if multiple independent DNS servers agree
+func verifyDNSResolution(hostname string) ([]string, error) {
+	type dnsResult struct {
+		server string
+		ips    []string
+		err    error
+	}
+
+	results := make(chan dnsResult, len(trustedDNSServers))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Query all DNS servers in parallel
+	for _, server := range trustedDNSServers {
+		go func(dnsServer string) {
+			ips, err := queryDNSServer(ctx, hostname, dnsServer)
+			results <- dnsResult{server: dnsServer, ips: ips, err: err}
+		}(server)
+	}
+
+	// Collect results
+	ipCount := make(map[string]int)
+	successfulQueries := 0
+	var lastError error
+
+	for i := 0; i < len(trustedDNSServers); i++ {
+		select {
+		case result := <-results:
+			if result.err != nil {
+				lastError = result.err
+				continue
+			}
+			successfulQueries++
+			for _, ip := range result.ips {
+				ipCount[ip]++
+			}
+		case <-ctx.Done():
+			break
 		}
 	}
 
-	return "", fmt.Errorf("no hash manifest found in any release")
+	if successfulQueries < minDNSConsensus {
+		return nil, fmt.Errorf("only %d DNS servers responded (need %d): %v",
+			successfulQueries, minDNSConsensus, lastError)
+	}
+
+	// Find IPs that have consensus (appear in at least minDNSConsensus responses)
+	var verifiedIPs []string
+	for ip, count := range ipCount {
+		if count >= minDNSConsensus {
+			verifiedIPs = append(verifiedIPs, ip)
+		}
+	}
+
+	if len(verifiedIPs) == 0 {
+		return nil, fmt.Errorf("DNS servers returned inconsistent results - possible DNS spoofing attack")
+	}
+
+	// Sort for consistent ordering
+	sort.Strings(verifiedIPs)
+
+	return verifiedIPs, nil
+}
+
+// queryDNSServer queries a specific DNS server for A records
+func queryDNSServer(ctx context.Context, hostname, dnsServer string) ([]string, error) {
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 3 * time.Second}
+			return d.DialContext(ctx, "udp", dnsServer)
+		},
+	}
+
+	addrs, err := resolver.LookupHost(ctx, hostname)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter to IPv4 only for consistency
+	var ipv4Addrs []string
+	for _, addr := range addrs {
+		if ip := net.ParseIP(addr); ip != nil && ip.To4() != nil {
+			ipv4Addrs = append(ipv4Addrs, addr)
+		}
+	}
+
+	if len(ipv4Addrs) == 0 {
+		return nil, fmt.Errorf("no IPv4 addresses found")
+	}
+
+	return ipv4Addrs, nil
+}
+
+// createSecureHTTPClient creates an HTTP client that only connects to verified IPs
+func createSecureHTTPClient(verifiedIPs []string) *http.Client {
+	// Create a custom dialer that only connects to verified IPs
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// Extract host and port
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+
+			// For GitHub domains, use our verified IPs
+			if host == "api.github.com" || host == "github.com" ||
+				strings.HasSuffix(host, ".githubusercontent.com") {
+				// Try each verified IP until one connects
+				for _, ip := range verifiedIPs {
+					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+					if err == nil {
+						return conn, nil
+					}
+				}
+				return nil, fmt.Errorf("failed to connect to any verified IP")
+			}
+
+			// For other hosts, use normal resolution
+			return dialer.DialContext(ctx, network, addr)
+		},
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+
+	return &http.Client{
+		Timeout:   15 * time.Second,
+		Transport: transport,
+	}
 }
 
 // tryFetchHashFromRelease attempts to fetch hash from a specific release
@@ -264,20 +403,17 @@ func tryFetchHashFromRelease(client *http.Client, releaseURL string) (string, er
 		return "", err
 	}
 
-	// Look for hash files in order of preference
-	var binaryChecksumsURL, jsonManifestURL, sha256sumsURL string
+	// Look for binary-checksums.json which contains per-binary hashes
+	var binaryChecksumsURL string
 	for _, asset := range release.Assets {
-		switch asset.Name {
-		case "binary-checksums.json":
+		if asset.Name == "binary-checksums.json" {
 			binaryChecksumsURL = asset.BrowserDownloadURL
-		case "checksums.json", "hashes.json":
-			jsonManifestURL = asset.BrowserDownloadURL
-		case "SHA256SUMS":
-			sha256sumsURL = asset.BrowserDownloadURL
+			break
 		}
 	}
 
-	// Try binary-checksums.json first (has actual binary hashes per platform)
+	// binary-checksums.json is the ONLY trusted source for binary hashes
+	// SHA256SUMS files typically contain archive hashes, not binary hashes
 	if binaryChecksumsURL != "" {
 		hash, err := fetchHashFromBinaryChecksums(client, binaryChecksumsURL)
 		if err == nil && hash != "" {
@@ -285,23 +421,7 @@ func tryFetchHashFromRelease(client *http.Client, releaseURL string) (string, er
 		}
 	}
 
-	// Try JSON manifest
-	if jsonManifestURL != "" {
-		hash, err := fetchHashFromJSONManifest(client, jsonManifestURL)
-		if err == nil && hash != "" {
-			return hash, nil
-		}
-	}
-
-	// Fall back to SHA256SUMS file (usually contains archive hashes, not binary)
-	if sha256sumsURL != "" {
-		hash, err := fetchHashFromSHA256SUMS(client, sha256sumsURL)
-		if err == nil && hash != "" {
-			return hash, nil
-		}
-	}
-
-	return "", fmt.Errorf("no hash found in release")
+	return "", fmt.Errorf("no binary-checksums.json found in release")
 }
 
 // BinaryChecksumsManifest represents the binary-checksums.json structure
@@ -346,109 +466,24 @@ func fetchHashFromBinaryChecksums(client *http.Client, url string) (string, erro
 	return "", fmt.Errorf("no hash found for platform %s", platform)
 }
 
-// fetchHashFromJSONManifest fetches hash from a JSON checksums file
-func fetchHashFromJSONManifest(client *http.Client, url string) (string, error) {
-	resp, err := client.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var manifest HashManifest
-	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
-		return "", err
-	}
-
-	// Get platform-specific identifiers
-	platform := getPlatformIdentifier()
-
-	// Try multiple possible key formats in order of specificity
-	possibleKeys := []string{
-		// Exact platform match for tar.gz archives
-		fmt.Sprintf("nettool-%s-beta.tar.gz", platform),
-		fmt.Sprintf("nettool-%s.tar.gz", platform),
-		// Platform identifier only
-		fmt.Sprintf("nettool-%s", platform),
-		// Binary name within archive
-		"nettool",
-	}
-
-	for _, key := range possibleKeys {
-		if hash, ok := manifest.Hashes[key]; ok {
-			return hash, nil
-		}
-	}
-
-	return "", fmt.Errorf("no hash found for platform %s", platform)
-}
-
-// fetchHashFromSHA256SUMS fetches hash from traditional SHA256SUMS file
-func fetchHashFromSHA256SUMS(client *http.Client, url string) (string, error) {
-	resp, err := client.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	// Get platform-specific identifier
-	platform := getPlatformIdentifier()
-
-	// Parse SHA256SUMS format: "hash  filename"
-	lines := strings.Split(string(body), "\n")
-
-	// Build list of possible filenames in order of preference (most specific first)
-	possiblePatterns := []string{
-		fmt.Sprintf("nettool-%s-beta.tar.gz", platform),
-		fmt.Sprintf("nettool-%s.tar.gz", platform),
-	}
-
-	// First pass: look for exact platform match
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		// Format: "hash  filename" or "hash filename"
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			hash := parts[0]
-			filename := parts[len(parts)-1]
-
-			for _, pattern := range possiblePatterns {
-				if filename == pattern {
-					return hash, nil
-				}
-			}
-		}
-	}
-
-	return "", fmt.Errorf("no hash found for platform %s", platform)
-}
-
 // getPlatformIdentifier returns the platform string used in release filenames
 func getPlatformIdentifier() string {
-	os := runtime.GOOS
+	goos := runtime.GOOS
 	arch := runtime.GOARCH
 
 	// Map Go architecture names to release filename conventions
 	switch arch {
 	case "386":
 		// Keep as-is for 32-bit x86
-		return fmt.Sprintf("%s-%s", os, arch)
+		return fmt.Sprintf("%s-%s", goos, arch)
 	case "arm":
 		// ARM builds might be named differently (arm6, arm7, etc.)
 		// Default to arm6 for Raspberry Pi Zero compatibility
-		return fmt.Sprintf("%s-arm6", os)
+		return fmt.Sprintf("%s-arm6", goos)
 	case "arm64":
-		return fmt.Sprintf("%s-%s", os, arch)
+		return fmt.Sprintf("%s-%s", goos, arch)
 	default:
-		return fmt.Sprintf("%s-%s", os, arch)
+		return fmt.Sprintf("%s-%s", goos, arch)
 	}
 }
 
