@@ -136,12 +136,24 @@ jobs:
           echo "main_hash=$MAIN_HASH" >> $GITHUB_OUTPUT
           echo "cli_hash=$CLI_HASH" >> $GITHUB_OUTPUT
           
-          # Create checksums file
+          # Create checksums file for the package
           echo "$MAIN_HASH  nettool" > SHA256SUMS
           echo "$CLI_HASH  nettool-iterate" >> SHA256SUMS
           
-          echo "Generated checksums:"
+          # Create platform-specific binary checksums JSON for aggregation
+          cat > binary-checksums.json << EOF
+          {
+            "platform": "${{ matrix.artifact }}",
+            "binaries": {
+              "nettool": "$MAIN_HASH",
+              "nettool-iterate": "$CLI_HASH"
+            }
+          }
+          EOF
+          
+          echo "Generated checksums for ${{ matrix.artifact }}:"
           cat SHA256SUMS
+          cat binary-checksums.json
 
       - name: Prepare package
         run: |
@@ -250,7 +262,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: checksums-${{ matrix.artifact }}
-          path: SHA256SUMS
+          path: |
+            SHA256SUMS
+            binary-checksums.json
           retention-days: 7
 
   update-beta-release:
@@ -287,33 +301,70 @@ jobs:
         run: |
           cd release-files
           
-          # Create checksums.json manifest
-          echo '{' > checksums.json
-          echo '  "version": "beta-${{ steps.info.outputs.sha_short }}",' >> checksums.json
-          echo '  "build_time": "${{ steps.info.outputs.date }}T${{ steps.info.outputs.time }}Z",' >> checksums.json
-          echo '  "hashes": {' >> checksums.json
+          # Create archive checksums (for verifying downloaded tar.gz files)
+          echo "Creating archive checksums..."
+          sha256sum *.tar.gz > SHA256SUMS-archives
           
-          FIRST=true
-          for file in *.tar.gz; do
-            HASH=$(sha256sum "$file" | cut -d' ' -f1)
-            if [ "$FIRST" = true ]; then
-              FIRST=false
-            else
-              echo ',' >> checksums.json
+          echo "Archive checksums:"
+          cat SHA256SUMS-archives
+          cd ..
+          
+          # Collect all binary checksums from artifacts
+          echo "Collecting binary checksums from all platforms..."
+          mkdir -p binary-hashes
+          find artifacts -name "binary-checksums.json" -exec cp {} binary-hashes/ \;
+          
+          # Rename to include platform name
+          for dir in artifacts/checksums-*; do
+            platform=$(basename "$dir" | sed 's/checksums-//')
+            if [ -f "$dir/binary-checksums.json" ]; then
+              cp "$dir/binary-checksums.json" "binary-hashes/${platform}.json"
             fi
-            echo -n "    \"$file\": \"$HASH\"" >> checksums.json
           done
           
-          echo '' >> checksums.json
-          echo '  }' >> checksums.json
-          echo '}' >> checksums.json
+          # Create combined binary checksums JSON
+          echo "Creating combined binary checksums..."
+          cat > release-files/binary-checksums.json << 'HEADER'
+          {
+            "version": "beta-${{ steps.info.outputs.sha_short }}",
+            "build_time": "${{ steps.info.outputs.date }}T${{ steps.info.outputs.time }}Z",
+            "description": "SHA256 hashes of binaries inside each platform package",
+            "platforms": {
+          HEADER
           
-          # Also create traditional SHA256SUMS file
-          sha256sum *.tar.gz > SHA256SUMS
+          FIRST=true
+          for f in binary-hashes/*.json; do
+            if [ -f "$f" ]; then
+              PLATFORM=$(basename "$f" .json)
+              MAIN_HASH=$(cat "$f" | grep -o '"nettool": "[^"]*"' | cut -d'"' -f4)
+              CLI_HASH=$(cat "$f" | grep -o '"nettool-iterate": "[^"]*"' | cut -d'"' -f4)
+              
+              if [ "$FIRST" = true ]; then
+                FIRST=false
+              else
+                echo ',' >> release-files/binary-checksums.json
+              fi
+              
+              cat >> release-files/binary-checksums.json << PLATFORM_EOF
+              "$PLATFORM": {
+                "nettool": "$MAIN_HASH",
+                "nettool-iterate": "$CLI_HASH"
+              }
+          PLATFORM_EOF
+            fi
+          done
           
-          echo "Generated checksums:"
-          cat checksums.json
-          cd ..
+          cat >> release-files/binary-checksums.json << 'FOOTER'
+            }
+          }
+          FOOTER
+          
+          echo ""
+          echo "Binary checksums (for runtime verification):"
+          cat release-files/binary-checksums.json
+          
+          # Move archive checksums to release
+          mv release-files/SHA256SUMS-archives release-files/SHA256SUMS
 
       - name: Delete existing beta tag and release
         env:
@@ -366,7 +417,7 @@ jobs:
             > 💡 For stable releases, check the [Releases](https://github.com/${{ github.repository }}/releases) page.
           files: |
             release-files/*.tar.gz
-            release-files/checksums.json
+            release-files/binary-checksums.json
             release-files/SHA256SUMS
           prerelease: true
           draft: false

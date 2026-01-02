@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -124,7 +125,21 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 		return status
 	}
 
-	// Try fetching hash from GitHub
+	// Try local SHA256SUMS file (included in the distribution package)
+	localHash, err := fetchHashFromLocalFile(execPath)
+	if err == nil && localHash != "" {
+		status.ExpectedHash = localHash
+		status.Source = "local"
+		status.Verified = actualHash == localHash
+		if !status.Verified {
+			status.TamperDetected = true
+		}
+		cachedStatus = status
+		integrityChecked = true
+		return status
+	}
+
+	// Try fetching hash from GitHub (for tar.gz verification - less reliable for binary)
 	githubHash, err := fetchHashFromGitHub()
 	if err == nil && githubHash != "" {
 		status.ExpectedHash = githubHash
@@ -146,6 +161,47 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 	integrityChecked = true
 
 	return status
+}
+
+// fetchHashFromLocalFile looks for SHA256SUMS file in the binary's directory
+func fetchHashFromLocalFile(execPath string) (string, error) {
+	// Get the directory containing the binary
+	execDir := filepath.Dir(execPath)
+	execName := filepath.Base(execPath)
+
+	// Remove .exe extension for matching on Windows
+	baseName := strings.TrimSuffix(execName, ".exe")
+
+	// Look for SHA256SUMS file in the same directory
+	sha256sumsPath := filepath.Join(execDir, "SHA256SUMS")
+
+	content, err := os.ReadFile(sha256sumsPath)
+	if err != nil {
+		return "", err
+	}
+
+	// Parse SHA256SUMS format: "hash  filename"
+	lines := strings.Split(string(content), "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			hash := parts[0]
+			filename := parts[len(parts)-1]
+
+			// Match against binary name (with or without extension)
+			if filename == execName || filename == baseName || filename == "nettool" {
+				return hash, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no hash found for %s in SHA256SUMS", execName)
 }
 
 // GetCachedIntegrityStatus returns the cached integrity status
@@ -209,9 +265,11 @@ func tryFetchHashFromRelease(client *http.Client, releaseURL string) (string, er
 	}
 
 	// Look for hash files in order of preference
-	var jsonManifestURL, sha256sumsURL string
+	var binaryChecksumsURL, jsonManifestURL, sha256sumsURL string
 	for _, asset := range release.Assets {
 		switch asset.Name {
+		case "binary-checksums.json":
+			binaryChecksumsURL = asset.BrowserDownloadURL
 		case "checksums.json", "hashes.json":
 			jsonManifestURL = asset.BrowserDownloadURL
 		case "SHA256SUMS":
@@ -219,7 +277,15 @@ func tryFetchHashFromRelease(client *http.Client, releaseURL string) (string, er
 		}
 	}
 
-	// Try JSON manifest first
+	// Try binary-checksums.json first (has actual binary hashes per platform)
+	if binaryChecksumsURL != "" {
+		hash, err := fetchHashFromBinaryChecksums(client, binaryChecksumsURL)
+		if err == nil && hash != "" {
+			return hash, nil
+		}
+	}
+
+	// Try JSON manifest
 	if jsonManifestURL != "" {
 		hash, err := fetchHashFromJSONManifest(client, jsonManifestURL)
 		if err == nil && hash != "" {
@@ -227,7 +293,7 @@ func tryFetchHashFromRelease(client *http.Client, releaseURL string) (string, er
 		}
 	}
 
-	// Fall back to SHA256SUMS file
+	// Fall back to SHA256SUMS file (usually contains archive hashes, not binary)
 	if sha256sumsURL != "" {
 		hash, err := fetchHashFromSHA256SUMS(client, sha256sumsURL)
 		if err == nil && hash != "" {
@@ -236,6 +302,48 @@ func tryFetchHashFromRelease(client *http.Client, releaseURL string) (string, er
 	}
 
 	return "", fmt.Errorf("no hash found in release")
+}
+
+// BinaryChecksumsManifest represents the binary-checksums.json structure
+type BinaryChecksumsManifest struct {
+	Version     string                       `json:"version"`
+	BuildTime   string                       `json:"build_time"`
+	Description string                       `json:"description"`
+	Platforms   map[string]map[string]string `json:"platforms"`
+}
+
+// fetchHashFromBinaryChecksums fetches hash from binary-checksums.json
+func fetchHashFromBinaryChecksums(client *http.Client, url string) (string, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var manifest BinaryChecksumsManifest
+	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
+		return "", err
+	}
+
+	// Get platform identifier
+	platform := getPlatformIdentifier()
+
+	// Try exact platform match
+	platformKey := fmt.Sprintf("nettool-%s", platform)
+	if platformHashes, ok := manifest.Platforms[platformKey]; ok {
+		if hash, ok := platformHashes["nettool"]; ok {
+			return hash, nil
+		}
+	}
+
+	// Try without nettool- prefix
+	if platformHashes, ok := manifest.Platforms[platform]; ok {
+		if hash, ok := platformHashes["nettool"]; ok {
+			return hash, nil
+		}
+	}
+
+	return "", fmt.Errorf("no hash found for platform %s", platform)
 }
 
 // fetchHashFromJSONManifest fetches hash from a JSON checksums file
