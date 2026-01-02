@@ -40,16 +40,6 @@ func LoadPluginFunc(pluginDir, pluginID string) (func(map[string]interface{}) (i
 		return nil, fmt.Errorf("no Go files found for plugin %s", pluginID)
 	}
 
-	// Use an adapter-like approach to call the plugin's Execute function
-	// This is a special case for our subnet_calculator plugin that uses executeAdapter
-	if pluginID == "subnet_calculator" {
-		registry := GetRegistry()
-		execFunc, err := registry.GetPluginFunc(pluginID)
-		if err == nil {
-			return execFunc, nil
-		}
-	}
-
 	// Dynamic import based on plugin directory
 	// The plugin must have a Plugin() function that returns a map with an "execute" key
 	return func(params map[string]interface{}) (interface{}, error) {
@@ -94,17 +84,13 @@ func LoadPluginFunc(pluginDir, pluginID string) (func(map[string]interface{}) (i
 		case "wifi_scanner":
 			return executeWifiScanner(params)
 		default:
-			// For other plugins, first try the registry (pre-registered plugins)
-			registry := GetRegistry()
-			if execFunc, err := registry.GetPluginFunc(pluginID); err == nil {
-				return execFunc(params)
-			}
-
-			// Then try to use pre-compiled dynamically loaded plugin (.so file)
+			// For unknown plugins, try to use pre-compiled dynamically loaded plugin (.so file)
+			// NOTE: Do NOT check the registry here - this function IS what gets registered
+			// in the registry, so checking it would cause infinite recursion
 			pluginPath := filepath.Join(pluginDir, pluginID+".so")
 			if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
-				// No .so file and not in registry - plugin not available
-				return nil, fmt.Errorf("plugin %s not found: no pre-compiled .so file and not registered", pluginID)
+				// No .so file - plugin not available for dynamic execution
+				return nil, fmt.Errorf("plugin %s not found: no pre-compiled .so file available", pluginID)
 			}
 
 			// Try to load the pre-compiled plugin
@@ -151,19 +137,15 @@ func executeCommand(command string) (string, error) {
 // but for now, we'll implement them with direct imports or simple placeholder functionality
 
 func executeSubnetCalculator(params map[string]interface{}) (interface{}, error) {
-	// First try the registry (pre-registered plugins - no Go compiler needed)
-	registry := GetRegistry()
-	if execFunc, err := registry.GetPluginFunc("subnet_calculator"); err == nil {
-		return execFunc(params)
-	}
-
-	// Then try to use a pre-compiled dynamic plugin (.so file)
+	// Try to use a pre-compiled dynamic plugin (.so file)
+	// NOTE: Do NOT check the registry here - this function can be called from
+	// LoadPluginFunc which itself gets registered, causing infinite recursion
 	pluginDir := filepath.Join("app", "plugins", "plugins", "subnet_calculator")
 	pluginPath := filepath.Join(pluginDir, "subnet_calculator.so")
 
 	// Check if pre-compiled plugin exists
 	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("subnet_calculator plugin not available: not registered and no pre-compiled .so file")
+		return nil, fmt.Errorf("subnet_calculator plugin not available: no pre-compiled .so file")
 	}
 
 	// Try to load the pre-compiled plugin
