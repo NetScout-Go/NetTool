@@ -98,10 +98,11 @@ func LoadPluginFunc(pluginDir, pluginID string) (func(map[string]interface{}) (i
 			pluginPath := filepath.Join(pluginDir, pluginID+".so")
 			if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
 				// No .so file, try to build it
-				buildCmd := fmt.Sprintf("cd %s && go build -buildmode=plugin -o %s.so .", pluginDir, pluginID)
-				_, err := executeCommand(buildCmd)
+				cmd := exec.Command("go", "build", "-buildmode=plugin", "-o", pluginID+".so", ".")
+				cmd.Dir = pluginDir
+				output, err := cmd.CombinedOutput()
 				if err != nil {
-					return nil, fmt.Errorf("failed to build plugin %s: %v", pluginID, err)
+					return nil, fmt.Errorf("failed to build plugin %s: %v (output: %s)", pluginID, err, string(output))
 				}
 			}
 
@@ -155,14 +156,15 @@ func executeSubnetCalculator(params map[string]interface{}) (interface{}, error)
 
 	// Build the plugin if it doesn't exist
 	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
-		buildCmd := fmt.Sprintf("cd %s && go build -buildmode=plugin -o subnet_calculator.so .", pluginDir)
-		_, err := executeCommand(buildCmd)
+		cmd := exec.Command("go", "build", "-buildmode=plugin", "-o", "subnet_calculator.so", ".")
+		cmd.Dir = pluginDir
+		output, err := cmd.CombinedOutput()
 		if err != nil {
 			// If dynamic loading fails, use the registry as a fallback
 			registry := GetRegistry()
 			execFunc, err := registry.GetPluginFunc("subnet_calculator")
 			if err != nil {
-				return nil, fmt.Errorf("subnet_calculator plugin not registered and couldn't build dynamic plugin: %v", err)
+				return nil, fmt.Errorf("subnet_calculator plugin not registered and couldn't build dynamic plugin: %v (output: %s)", err, string(output))
 			}
 			return execFunc(params)
 		}

@@ -24,9 +24,6 @@ var (
 	Version   = "dev"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
-
-	// Security flags
-	SkipIntegrityCheck = false
 )
 
 var upgrader = websocket.Upgrader{
@@ -44,7 +41,6 @@ func main() {
 	// Parse command line flags
 	port := flag.Int("port", 8080, "Port to run the server on")
 	version := flag.Bool("version", false, "Show version information")
-	skipIntegrity := flag.Bool("skip-integrity", false, "Skip binary integrity verification")
 	showIntegrity := flag.Bool("integrity", false, "Show integrity verification status and exit")
 	flag.Parse()
 
@@ -56,12 +52,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Perform integrity verification
-	if !*skipIntegrity {
-		performIntegrityCheck(*showIntegrity)
-	} else {
-		log.Println("⚠️  Integrity verification skipped (--skip-integrity flag)")
-	}
+	// MANDATORY: Perform integrity verification - cannot be skipped
+	performIntegrityCheck(*showIntegrity)
 
 	// If only showing integrity status, exit
 	if *showIntegrity {
@@ -833,8 +825,8 @@ func performIntegrityCheck(showStatus bool) {
 
 		if status.ShouldBlock {
 			fmt.Println("───────────────────────────────────────")
-			fmt.Println("⛔ Binary will NOT run without verification")
-			fmt.Println("   Use --skip-integrity to bypass (at your own risk)")
+			fmt.Println("⛔ Binary will NOT run - integrity check CANNOT be skipped")
+			fmt.Println("   This is a security measure to protect against tampering")
 		}
 		fmt.Println("═══════════════════════════════════════\n")
 		return
@@ -863,9 +855,9 @@ func performIntegrityCheck(showStatus bool) {
 		}
 
 		log.Println("")
-		log.Println("⛔ For security, this binary will NOT run.")
-		log.Println("   If you trust this binary, use --skip-integrity to bypass.")
-		log.Println("   WARNING: Running unverified binaries is a security risk!")
+		log.Println("⛔ CRITICAL: This binary will NOT run.")
+		log.Println("   Integrity verification is MANDATORY and cannot be bypassed.")
+		log.Println("   Only official releases from GitHub are trusted.")
 		os.Exit(1)
 	}
 
@@ -877,8 +869,8 @@ func performIntegrityCheck(showStatus bool) {
 		log.Println("✅ Binary integrity verified (official release)")
 	case "github-beta":
 		log.Println("✅ Binary integrity verified (beta release)")
-	case "skipped":
-		log.Println("ℹ️  Integrity verification disabled at compile time")
+	case "development":
+		log.Println("⚠️  Development build - integrity verification not available")
 	default:
 		log.Printf("✅ Binary integrity verified (source: %s)", status.Source)
 	}

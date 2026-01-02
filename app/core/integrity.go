@@ -175,8 +175,8 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 	// 2. Network offline (can't reach GitHub)
 	// 3. Custom build from source
 	//
-	// For security, we block execution if no trusted hash is available
-	// Users must use --skip-integrity flag to bypass (at their own risk)
+	// For security, we ALWAYS block execution if no trusted hash is available
+	// This check is MANDATORY and cannot be bypassed
 	status.Source = "blocked"
 	status.Verified = false
 	status.ShouldBlock = true
