@@ -1,0 +1,255 @@
+name: Beta Build
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+
+env:
+  GO_VERSION: '1.24'
+  NODE_VERSION: '20'
+
+jobs:
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  build-binaries:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    strategy:
+      matrix:
+        include:
+          - name: Linux x64
+            goos: linux
+            goarch: amd64
+            artifact: nettool-linux-amd64
+            
+          - name: Linux x32
+            goos: linux
+            goarch: '386'
+            artifact: nettool-linux-386
+            
+          - name: Linux Pi Zero (ARMv6)
+            goos: linux
+            goarch: arm
+            goarm: '6'
+            artifact: nettool-linux-arm6
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Get version info
+        id: version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="beta-${SHORT_SHA}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          CGO_ENABLED: '0'
+        run: |
+          LDFLAGS="-w -s"
+          LDFLAGS="$LDFLAGS -X main.Version=${{ steps.version.outputs.version }}"
+          LDFLAGS="$LDFLAGS -X main.BuildTime=${{ steps.version.outputs.build_time }}"
+          LDFLAGS="$LDFLAGS -X main.GitCommit=${{ steps.version.outputs.commit }}"
+          LDFLAGS="$LDFLAGS -X github.com/gin-gonic/gin.Mode=release"
+          
+          echo "Building NetTool for ${{ matrix.name }} (beta)..."
+          go build -ldflags "$LDFLAGS" -trimpath -o nettool ./main.go
+          
+          echo "Building CLI tool..."
+          go build -ldflags "$LDFLAGS" -trimpath -o nettool-iterate ./app/cmd/iterate/main.go
+
+      - name: Prepare package
+        run: |
+          mkdir -p package/frontend/dist
+          mkdir -p package/app/plugins/plugins
+          
+          cp nettool package/
+          cp nettool-iterate package/
+          cp -r frontend/dist/* package/frontend/dist/
+          cp app/plugins/config.json.example package/app/plugins/
+          [ -f app/plugins/config.json ] && cp app/plugins/config.json package/app/plugins/ || true
+          cp README.md package/ || true
+          cp LICENSE package/ || true
+          
+          # Create install script
+          cat > package/install.sh << 'INSTALL_EOF'
+          #!/bin/bash
+          set -e
+          INSTALL_DIR="/opt/nettool"
+          SERVICE_FILE="/etc/systemd/system/nettool.service"
+          USER="nettool"
+          GROUP="nettool"
+          echo "🚀 Installing NetTool (Beta)..."
+          if [ "$EUID" -ne 0 ]; then
+              echo "❌ Please run as root (use sudo)"
+              exit 1
+          fi
+          if ! getent group $GROUP >/dev/null; then
+              groupadd --system $GROUP
+          fi
+          if ! getent passwd $USER >/dev/null; then
+              useradd --system --gid $GROUP --shell /bin/false --home-dir $INSTALL_DIR $USER
+          fi
+          mkdir -p $INSTALL_DIR
+          cp -r . $INSTALL_DIR/
+          chown -R $USER:$GROUP $INSTALL_DIR
+          chmod +x $INSTALL_DIR/nettool $INSTALL_DIR/nettool-iterate
+          ln -sf $INSTALL_DIR/nettool /usr/local/bin/nettool
+          ln -sf $INSTALL_DIR/nettool-iterate /usr/local/bin/nettool-iterate
+          cat > $SERVICE_FILE << 'SERVICE_EOF'
+          [Unit]
+          Description=NetTool Network Analysis Server
+          After=network.target
+          [Service]
+          Type=simple
+          User=nettool
+          Group=nettool
+          WorkingDirectory=/opt/nettool
+          ExecStart=/opt/nettool/nettool --port=8080
+          Restart=always
+          RestartSec=5
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE_EOF
+          systemctl daemon-reload
+          systemctl enable nettool
+          echo "✅ Installation complete!"
+          echo "   Start: sudo systemctl start nettool"
+          echo "   Logs:  sudo journalctl -u nettool -f"
+          echo "   Web:   http://localhost:8080"
+          INSTALL_EOF
+          chmod +x package/install.sh
+
+      - name: Create archive
+        run: |
+          cd package
+          tar -czvf ../${{ matrix.artifact }}-beta.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}-beta.tar.gz
+          retention-days: 7
+
+  update-beta-release:
+    name: Update Beta Release
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get commit info
+        id: info
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "sha_full=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          echo "time=$(date -u +%H:%M:%S)" >> $GITHUB_OUTPUT
+          echo "commit_msg=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move artifacts
+        run: |
+          mkdir -p release-files
+          find artifacts -name "*.tar.gz" -exec mv {} release-files/ \;
+          ls -la release-files/
+
+      - name: Delete existing beta tag and release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete the release if it exists
+          gh release delete beta --yes || true
+          # Delete the tag if it exists
+          git push origin :refs/tags/beta || true
+
+      - name: Create Beta Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: beta
+          name: "🧪 Beta Build (${{ steps.info.outputs.date }})"
+          body: |
+            ## ⚠️ Beta Build - Use at Your Own Risk
+            
+            This is an automatically generated build from the latest `main` branch commit.
+            
+            **Build Info:**
+            - 📅 Date: ${{ steps.info.outputs.date }} ${{ steps.info.outputs.time }} UTC
+            - 🔖 Commit: [`${{ steps.info.outputs.sha_short }}`](https://github.com/${{ github.repository }}/commit/${{ steps.info.outputs.sha_full }})
+            - 💬 Message: ${{ steps.info.outputs.commit_msg }}
+            
+            **Downloads:**
+            | Platform | File |
+            |----------|------|
+            | Linux x64 | `nettool-linux-amd64-beta.tar.gz` |
+            | Linux x32 | `nettool-linux-386-beta.tar.gz` |
+            | Pi Zero (ARMv6) | `nettool-linux-arm6-beta.tar.gz` |
+            
+            ---
+            
+            > 💡 For stable releases, check the [Releases](https://github.com/${{ github.repository }}/releases) page.
+          files: release-files/*.tar.gz
+          prerelease: true
+          draft: false
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
