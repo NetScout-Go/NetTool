@@ -173,10 +173,27 @@ func calculateBinaryHash(path string) (string, error) {
 
 // fetchHashFromGitHub fetches the hash manifest from GitHub releases
 func fetchHashFromGitHub() (string, error) {
-	// Try to get the latest release
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	resp, err := client.Get("https://api.github.com/repos/NetScout-Go/NetTool/releases/latest")
+	// Try multiple release endpoints: latest stable, then beta
+	releaseURLs := []string{
+		"https://api.github.com/repos/NetScout-Go/NetTool/releases/latest",
+		"https://api.github.com/repos/NetScout-Go/NetTool/releases/tags/beta",
+	}
+
+	for _, releaseURL := range releaseURLs {
+		hash, err := tryFetchHashFromRelease(client, releaseURL)
+		if err == nil && hash != "" {
+			return hash, nil
+		}
+	}
+
+	return "", fmt.Errorf("no hash manifest found in any release")
+}
+
+// tryFetchHashFromRelease attempts to fetch hash from a specific release
+func tryFetchHashFromRelease(client *http.Client, releaseURL string) (string, error) {
+	resp, err := client.Get(releaseURL)
 	if err != nil {
 		return "", err
 	}
@@ -191,38 +208,140 @@ func fetchHashFromGitHub() (string, error) {
 		return "", err
 	}
 
-	// Look for the hash manifest file
-	var manifestURL string
+	// Look for hash files in order of preference
+	var jsonManifestURL, sha256sumsURL string
 	for _, asset := range release.Assets {
-		if asset.Name == "checksums.json" || asset.Name == "hashes.json" {
-			manifestURL = asset.BrowserDownloadURL
-			break
+		switch asset.Name {
+		case "checksums.json", "hashes.json":
+			jsonManifestURL = asset.BrowserDownloadURL
+		case "SHA256SUMS":
+			sha256sumsURL = asset.BrowserDownloadURL
 		}
 	}
 
-	if manifestURL == "" {
-		return "", fmt.Errorf("no hash manifest found in release")
+	// Try JSON manifest first
+	if jsonManifestURL != "" {
+		hash, err := fetchHashFromJSONManifest(client, jsonManifestURL)
+		if err == nil && hash != "" {
+			return hash, nil
+		}
 	}
 
-	// Fetch the manifest
-	manifestResp, err := client.Get(manifestURL)
+	// Fall back to SHA256SUMS file
+	if sha256sumsURL != "" {
+		hash, err := fetchHashFromSHA256SUMS(client, sha256sumsURL)
+		if err == nil && hash != "" {
+			return hash, nil
+		}
+	}
+
+	return "", fmt.Errorf("no hash found in release")
+}
+
+// fetchHashFromJSONManifest fetches hash from a JSON checksums file
+func fetchHashFromJSONManifest(client *http.Client, url string) (string, error) {
+	resp, err := client.Get(url)
 	if err != nil {
 		return "", err
 	}
-	defer manifestResp.Body.Close()
+	defer resp.Body.Close()
 
 	var manifest HashManifest
-	if err := json.NewDecoder(manifestResp.Body).Decode(&manifest); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
 		return "", err
 	}
 
-	// Find hash for current platform
-	binaryName := fmt.Sprintf("nettool-%s-%s", runtime.GOOS, runtime.GOARCH)
-	if hash, ok := manifest.Hashes[binaryName]; ok {
-		return hash, nil
+	// Get platform-specific identifiers
+	platform := getPlatformIdentifier()
+
+	// Try multiple possible key formats in order of specificity
+	possibleKeys := []string{
+		// Exact platform match for tar.gz archives
+		fmt.Sprintf("nettool-%s-beta.tar.gz", platform),
+		fmt.Sprintf("nettool-%s.tar.gz", platform),
+		// Platform identifier only
+		fmt.Sprintf("nettool-%s", platform),
+		// Binary name within archive
+		"nettool",
 	}
 
-	return "", fmt.Errorf("no hash found for %s", binaryName)
+	for _, key := range possibleKeys {
+		if hash, ok := manifest.Hashes[key]; ok {
+			return hash, nil
+		}
+	}
+
+	return "", fmt.Errorf("no hash found for platform %s", platform)
+}
+
+// fetchHashFromSHA256SUMS fetches hash from traditional SHA256SUMS file
+func fetchHashFromSHA256SUMS(client *http.Client, url string) (string, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	// Get platform-specific identifier
+	platform := getPlatformIdentifier()
+
+	// Parse SHA256SUMS format: "hash  filename"
+	lines := strings.Split(string(body), "\n")
+
+	// Build list of possible filenames in order of preference (most specific first)
+	possiblePatterns := []string{
+		fmt.Sprintf("nettool-%s-beta.tar.gz", platform),
+		fmt.Sprintf("nettool-%s.tar.gz", platform),
+	}
+
+	// First pass: look for exact platform match
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Format: "hash  filename" or "hash filename"
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			hash := parts[0]
+			filename := parts[len(parts)-1]
+
+			for _, pattern := range possiblePatterns {
+				if filename == pattern {
+					return hash, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no hash found for platform %s", platform)
+}
+
+// getPlatformIdentifier returns the platform string used in release filenames
+func getPlatformIdentifier() string {
+	os := runtime.GOOS
+	arch := runtime.GOARCH
+
+	// Map Go architecture names to release filename conventions
+	switch arch {
+	case "386":
+		// Keep as-is for 32-bit x86
+		return fmt.Sprintf("%s-%s", os, arch)
+	case "arm":
+		// ARM builds might be named differently (arm6, arm7, etc.)
+		// Default to arm6 for Raspberry Pi Zero compatibility
+		return fmt.Sprintf("%s-arm6", os)
+	case "arm64":
+		return fmt.Sprintf("%s-%s", os, arch)
+	default:
+		return fmt.Sprintf("%s-%s", os, arch)
+	}
 }
 
 // PerformAntiTamperChecks runs various anti-tampering checks
