@@ -218,13 +218,20 @@ func calculateBinaryHash(path string) (string, error) {
 func fetchHashFromGitHub() (string, string, error) {
 	// First, verify DNS resolution using multiple trusted DNS servers
 	// This protects against DNS spoofing attacks
-	verifiedIPs, err := verifyDNSResolution("api.github.com")
+	verifiedAPIIPs, err := verifyDNSResolution("api.github.com")
 	if err != nil {
-		return "", "", fmt.Errorf("DNS verification failed: %v", err)
+		return "", "", fmt.Errorf("DNS verification failed for api.github.com: %v", err)
+	}
+
+	// Also verify DNS for release assets domain (used for downloads)
+	verifiedAssetsIPs, err := verifyDNSResolution("objects.githubusercontent.com")
+	if err != nil {
+		// Non-fatal - will try with standard resolution for downloads
+		verifiedAssetsIPs = nil
 	}
 
 	// Create HTTP client that uses our verified IPs
-	client := createSecureHTTPClient(verifiedIPs)
+	client := createSecureHTTPClient(verifiedAPIIPs, verifiedAssetsIPs)
 
 	// Try multiple release endpoints: latest stable first, then beta
 	releaseEndpoints := []struct {
@@ -343,7 +350,7 @@ func queryDNSServer(ctx context.Context, hostname, dnsServer string) ([]string, 
 }
 
 // createSecureHTTPClient creates an HTTP client that only connects to verified IPs
-func createSecureHTTPClient(verifiedIPs []string) *http.Client {
+func createSecureHTTPClient(verifiedAPIIPs, verifiedAssetsIPs []string) *http.Client {
 	// Create a custom dialer that only connects to verified IPs
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
@@ -358,20 +365,30 @@ func createSecureHTTPClient(verifiedIPs []string) *http.Client {
 				return nil, err
 			}
 
-			// For GitHub domains, use our verified IPs
-			if host == "api.github.com" || host == "github.com" ||
-				strings.HasSuffix(host, ".githubusercontent.com") {
-				// Try each verified IP until one connects
-				for _, ip := range verifiedIPs {
+			// For GitHub API, use verified IPs
+			if host == "api.github.com" {
+				for _, ip := range verifiedAPIIPs {
 					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
 					if err == nil {
 						return conn, nil
 					}
 				}
-				return nil, fmt.Errorf("failed to connect to any verified IP")
+				return nil, fmt.Errorf("failed to connect to any verified API IP")
 			}
 
-			// For other hosts, use normal resolution
+			// For GitHub release assets, use verified IPs if available
+			if verifiedAssetsIPs != nil && (strings.HasSuffix(host, ".githubusercontent.com") ||
+				strings.HasSuffix(host, ".github.com")) {
+				for _, ip := range verifiedAssetsIPs {
+					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+					if err == nil {
+						return conn, nil
+					}
+				}
+				// Fall through to normal resolution if verified IPs don't work
+			}
+
+			// For other hosts or fallback, use normal resolution
 			return dialer.DialContext(ctx, network, addr)
 		},
 		TLSClientConfig: &tls.Config{
@@ -383,6 +400,13 @@ func createSecureHTTPClient(verifiedIPs []string) *http.Client {
 	return &http.Client{
 		Timeout:   15 * time.Second,
 		Transport: transport,
+		// Follow redirects but let the dialer handle IP verification
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
 	}
 }
 

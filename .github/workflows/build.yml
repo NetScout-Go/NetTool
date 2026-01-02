@@ -394,54 +394,63 @@ jobs:
           echo "Collecting binary checksums from all platforms..."
           mkdir -p binary-hashes
           
-          # Copy platform-specific binary checksums
+          # Only copy platform-specific checksums
           for dir in artifacts/checksums-*; do
             platform=$(basename "$dir" | sed 's/checksums-//')
             if [ -f "$dir/binary-checksums.json" ]; then
               cp "$dir/binary-checksums.json" "binary-hashes/${platform}.json"
+              echo "Found checksums for: $platform"
             fi
           done
           
-          # Create combined binary checksums JSON
+          # Create combined binary checksums JSON with proper formatting
           echo "Creating combined binary checksums..."
-          cat > release-files/binary-checksums.json << 'HEADER'
-          {
-            "version": "${{ steps.version.outputs.version }}",
-            "build_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "description": "SHA256 hashes of binaries inside each platform package",
-            "platforms": {
-          HEADER
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           
+          # Start JSON
+          echo '{' > release-files/binary-checksums.json
+          echo "  \"version\": \"${{ steps.version.outputs.version }}\"," >> release-files/binary-checksums.json
+          echo "  \"build_time\": \"$BUILD_TIME\"," >> release-files/binary-checksums.json
+          echo '  "description": "SHA256 hashes of binaries inside each platform package",' >> release-files/binary-checksums.json
+          echo '  "platforms": {' >> release-files/binary-checksums.json
+          
+          # Add each platform
           FIRST=true
-          for f in binary-hashes/*.json; do
+          for f in binary-hashes/nettool-*.json; do
             if [ -f "$f" ]; then
               PLATFORM=$(basename "$f" .json)
-              MAIN_HASH=$(cat "$f" | grep -o '"nettool": "[^"]*"' | cut -d'"' -f4)
-              CLI_HASH=$(cat "$f" | grep -o '"nettool-iterate": "[^"]*"' | cut -d'"' -f4)
+              MAIN_HASH=$(grep -o '"nettool": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+              CLI_HASH=$(grep -o '"nettool-iterate": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
               
-              if [ "$FIRST" = true ]; then
-                FIRST=false
-              else
-                echo ',' >> release-files/binary-checksums.json
+              if [ -n "$MAIN_HASH" ]; then
+                if [ "$FIRST" = true ]; then
+                  FIRST=false
+                else
+                  echo ',' >> release-files/binary-checksums.json
+                fi
+                
+                echo "    \"$PLATFORM\": {" >> release-files/binary-checksums.json
+                echo "      \"nettool\": \"$MAIN_HASH\"," >> release-files/binary-checksums.json
+                echo "      \"nettool-iterate\": \"$CLI_HASH\"" >> release-files/binary-checksums.json
+                echo -n "    }" >> release-files/binary-checksums.json
               fi
-              
-              cat >> release-files/binary-checksums.json << PLATFORM_EOF
-              "$PLATFORM": {
-                "nettool": "$MAIN_HASH",
-                "nettool-iterate": "$CLI_HASH"
-              }
-          PLATFORM_EOF
             fi
           done
           
-          cat >> release-files/binary-checksums.json << 'FOOTER'
-            }
-          }
-          FOOTER
+          # Close JSON
+          echo '' >> release-files/binary-checksums.json
+          echo '  }' >> release-files/binary-checksums.json
+          echo '}' >> release-files/binary-checksums.json
           
           echo ""
           echo "Binary checksums (for runtime verification):"
           cat release-files/binary-checksums.json
+          
+          # Validate JSON
+          echo ""
+          echo "Validating JSON..."
+          python3 -m json.tool release-files/binary-checksums.json > /dev/null && echo "✅ JSON is valid" || echo "❌ JSON is invalid"
+          
           echo ""
           echo "Release files:"
           ls -la release-files/
