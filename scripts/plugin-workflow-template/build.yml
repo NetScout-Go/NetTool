@@ -1,0 +1,361 @@
+name: Build and Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: false
+        default: 'dev'
+
+env:
+  GO_VERSION: '1.24'
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            goos: linux
+            goarch: amd64
+            artifact: linux-amd64
+          - name: Linux x32
+            goos: linux
+            goarch: '386'
+            artifact: linux-386
+          - name: Linux ARM6 (Pi Zero)
+            goos: linux
+            goarch: arm
+            goarm: '6'
+            artifact: linux-arm6
+          - name: Linux ARM7 (Pi 3/4 32-bit)
+            goos: linux
+            goarch: arm
+            goarm: '7'
+            artifact: linux-arm7
+          - name: Linux ARM64 (Pi 4+ 64-bit)
+            goos: linux
+            goarch: arm64
+            artifact: linux-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Install UPX (for compression)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx-ucl
+
+      - name: Extract plugin ID
+        id: plugin
+        run: |
+          # Get plugin ID from plugin.json or directory name
+          if [ -f "plugin.json" ]; then
+            PLUGIN_ID=$(jq -r '.id // empty' plugin.json 2>/dev/null || echo "")
+          fi
+          if [ -z "$PLUGIN_ID" ]; then
+            # Fallback to repo name without Plugin_ prefix
+            REPO_NAME="${{ github.event.repository.name }}"
+            PLUGIN_ID="${REPO_NAME#Plugin_}"
+          fi
+          echo "id=${PLUGIN_ID}" >> $GITHUB_OUTPUT
+          echo "Plugin ID: ${PLUGIN_ID}"
+
+      - name: Get version info
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          elif [ "${{ github.event.inputs.version }}" != "" ]; then
+            VERSION=${{ github.event.inputs.version }}
+          else
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Build binary (hardened)
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          CGO_ENABLED: '0'
+          PLUGIN_ID: ${{ steps.plugin.outputs.id }}
+        run: |
+          # Maximum size reduction and security hardening flags
+          # -w: Omit DWARF symbol table (debug info)
+          # -s: Omit symbol table and debug information
+          # -buildid=: Remove build ID (reduces binary analysis)
+          LDFLAGS="-w -s -buildid="
+          LDFLAGS="$LDFLAGS -X main.Version=${{ steps.version.outputs.version }}"
+          LDFLAGS="$LDFLAGS -X main.BuildTime=${{ steps.version.outputs.build_time }}"
+          LDFLAGS="$LDFLAGS -X main.GitCommit=${{ steps.version.outputs.commit }}"
+          
+          # Build tags for static compilation and optimizations
+          BUILD_TAGS="netgo,osusergo"
+          
+          # Additional GC flags for smaller binaries
+          export GOGC=off
+          
+          echo "Building ${PLUGIN_ID} for ${{ matrix.name }} (hardened release mode)..."
+          go build -a -trimpath -installsuffix cgo \
+            -tags "$BUILD_TAGS" \
+            -ldflags "$LDFLAGS" \
+            -gcflags=all="-l -B" \
+            -o "${PLUGIN_ID}" .
+          
+          echo "Initial binary size:"
+          ls -lh "${PLUGIN_ID}"
+
+      - name: Strip binary (additional size reduction)
+        env:
+          PLUGIN_ID: ${{ steps.plugin.outputs.id }}
+        run: |
+          # Strip for x86/x64 targets
+          if [ "${{ matrix.goarch }}" = "amd64" ] || [ "${{ matrix.goarch }}" = "386" ]; then
+            strip --strip-all "${PLUGIN_ID}" 2>/dev/null || true
+            echo "After strip:"
+            ls -lh "${PLUGIN_ID}"
+          fi
+
+      - name: Compress binary with UPX
+        env:
+          PLUGIN_ID: ${{ steps.plugin.outputs.id }}
+        run: |
+          # UPX compression for maximum size reduction
+          # --best: Best compression (slower)
+          # --lzma: Use LZMA compression (best ratio)
+          
+          echo "Compressing with UPX..."
+          
+          if [ "${{ matrix.goarch }}" = "arm" ]; then
+            # ARM may have issues with UPX LZMA, use safer settings
+            upx --best "${PLUGIN_ID}" 2>/dev/null || echo "UPX failed for ${PLUGIN_ID} (ARM), skipping"
+          else
+            # x86/x64 - use maximum compression
+            upx --best --lzma "${PLUGIN_ID}" 2>/dev/null || upx --best "${PLUGIN_ID}" 2>/dev/null || echo "UPX failed for ${PLUGIN_ID}, skipping"
+          fi
+          
+          echo "Final binary size after compression:"
+          ls -lh "${PLUGIN_ID}"
+
+      - name: Generate checksum
+        env:
+          PLUGIN_ID: ${{ steps.plugin.outputs.id }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          HASH=$(sha256sum "${PLUGIN_ID}" | cut -d' ' -f1)
+          
+          echo "$HASH  ${PLUGIN_ID}" > "${PLUGIN_ID}-${{ matrix.artifact }}-${VERSION}.sha256"
+          
+          # Create platform-specific binary checksums JSON
+          cat > binary-checksums.json << EOF
+          {
+            "platform": "${{ matrix.artifact }}",
+            "binary": "${PLUGIN_ID}",
+            "hash": "$HASH"
+          }
+          EOF
+          
+          echo "Generated checksum:"
+          cat "${PLUGIN_ID}-${{ matrix.artifact }}-${VERSION}.sha256"
+
+      - name: Create archive
+        env:
+          PLUGIN_ID: ${{ steps.plugin.outputs.id }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCHIVE_NAME="${PLUGIN_ID}-${{ matrix.artifact }}-${VERSION}.tar.gz"
+          
+          # Include binary, plugin.json, and static files if they exist
+          FILES_TO_ARCHIVE="${PLUGIN_ID}"
+          [ -f "plugin.json" ] && FILES_TO_ARCHIVE="${FILES_TO_ARCHIVE} plugin.json"
+          [ -f "data.json" ] && FILES_TO_ARCHIVE="${FILES_TO_ARCHIVE} data.json"
+          [ -d "static" ] && FILES_TO_ARCHIVE="${FILES_TO_ARCHIVE} static"
+          [ -f "README.md" ] && FILES_TO_ARCHIVE="${FILES_TO_ARCHIVE} README.md"
+          
+          tar -czvf "${ARCHIVE_NAME}" ${FILES_TO_ARCHIVE}
+          echo "archive_name=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          ls -la "${ARCHIVE_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-${{ matrix.artifact }}
+          path: |
+            ${{ env.archive_name }}
+            ${{ steps.plugin.outputs.id }}-${{ matrix.artifact }}-*.sha256
+
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ matrix.artifact }}
+          path: binary-checksums.json
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract plugin info
+        id: plugin
+        run: |
+          if [ -f "plugin.json" ]; then
+            PLUGIN_ID=$(jq -r '.id // empty' plugin.json 2>/dev/null || echo "")
+            PLUGIN_NAME=$(jq -r '.name // empty' plugin.json 2>/dev/null || echo "")
+            PLUGIN_DESC=$(jq -r '.description // empty' plugin.json 2>/dev/null || echo "")
+          fi
+          if [ -z "$PLUGIN_ID" ]; then
+            REPO_NAME="${{ github.event.repository.name }}"
+            PLUGIN_ID="${REPO_NAME#Plugin_}"
+          fi
+          if [ -z "$PLUGIN_NAME" ]; then
+            PLUGIN_NAME="${PLUGIN_ID}"
+          fi
+          echo "id=${PLUGIN_ID}" >> $GITHUB_OUTPUT
+          echo "name=${PLUGIN_NAME}" >> $GITHUB_OUTPUT
+          echo "description=${PLUGIN_DESC}" >> $GITHUB_OUTPUT
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets and generate checksums
+        env:
+          PLUGIN_ID: ${{ steps.plugin.outputs.id }}
+        run: |
+          mkdir -p release
+          find artifacts -name "*.tar.gz" -exec mv {} release/ \;
+          find artifacts -name "*.sha256" -exec mv {} release/ \;
+          
+          cd release
+          
+          # Create archive checksums
+          echo "Creating archive checksums..."
+          sha256sum *.tar.gz > SHA256SUMS
+          echo "Archive checksums:"
+          cat SHA256SUMS
+          cd ..
+          
+          # Collect binary checksums from all platforms
+          echo "Collecting binary checksums..."
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          # Create combined checksums.json
+          echo '{' > release/checksums.json
+          echo "  \"plugin_id\": \"${PLUGIN_ID}\"," >> release/checksums.json
+          echo "  \"version\": \"${{ steps.version.outputs.version }}\"," >> release/checksums.json
+          echo "  \"build_time\": \"$BUILD_TIME\"," >> release/checksums.json
+          echo '  "platforms": {' >> release/checksums.json
+          
+          FIRST=true
+          for f in artifacts/checksums-*/binary-checksums.json; do
+            if [ -f "$f" ]; then
+              PLATFORM=$(grep -o '"platform": "[^"]*"' "$f" | cut -d'"' -f4)
+              HASH=$(grep -o '"hash": "[^"]*"' "$f" | cut -d'"' -f4)
+              
+              if [ -n "$HASH" ]; then
+                if [ "$FIRST" = true ]; then
+                  FIRST=false
+                else
+                  echo ',' >> release/checksums.json
+                fi
+                echo -n "    \"$PLATFORM\": \"$HASH\"" >> release/checksums.json
+              fi
+            fi
+          done
+          
+          echo '' >> release/checksums.json
+          echo '  }' >> release/checksums.json
+          echo '}' >> release/checksums.json
+          
+          echo ""
+          echo "Binary checksums.json:"
+          cat release/checksums.json
+          
+          # Validate JSON
+          python3 -m json.tool release/checksums.json > /dev/null && echo "✅ JSON is valid" || echo "❌ JSON is invalid"
+          
+          echo ""
+          echo "Release files:"
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ steps.plugin.outputs.name }} ${{ github.ref_name }}"
+          body: |
+            ## ${{ steps.plugin.outputs.name }} ${{ github.ref_name }}
+            
+            ${{ steps.plugin.outputs.description }}
+            
+            ### 🔐 Security
+            All binaries are built with:
+            - Debug symbols stripped for smaller size
+            - Build paths removed for privacy
+            - UPX compression for minimum size
+            
+            ### Installation
+            
+            Download the appropriate archive for your platform and extract to your NetTool plugins directory:
+            
+            ```bash
+            # Example for Linux x64
+            tar -xzf ${{ steps.plugin.outputs.id }}-linux-amd64-${{ github.ref_name }}.tar.gz -C ~/.nettool/plugins/${{ steps.plugin.outputs.id }}/
+            ```
+            
+            Or install via NetTool Plugin Manager:
+            ```bash
+            nettool plugin install ${{ steps.plugin.outputs.id }}
+            ```
+            
+            ### Verify Download
+            
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+            
+            ### Platforms
+            
+            | Platform | Architecture | File |
+            |----------|--------------|------|
+            | Linux x64 | amd64 | `${{ steps.plugin.outputs.id }}-linux-amd64-${{ github.ref_name }}.tar.gz` |
+            | Linux x32 | 386 | `${{ steps.plugin.outputs.id }}-linux-386-${{ github.ref_name }}.tar.gz` |
+            | Linux ARM6 | arm/v6 | `${{ steps.plugin.outputs.id }}-linux-arm6-${{ github.ref_name }}.tar.gz` |
+            | Linux ARM7 | arm/v7 | `${{ steps.plugin.outputs.id }}-linux-arm7-${{ github.ref_name }}.tar.gz` |
+            | Linux ARM64 | arm64 | `${{ steps.plugin.outputs.id }}-linux-arm64-${{ github.ref_name }}.tar.gz` |
+          files: |
+            release/*.tar.gz
+            release/SHA256SUMS
+            release/checksums.json
+          draft: false
+          prerelease: false
+          generate_release_notes: true

@@ -1,7 +1,9 @@
 package plugins
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -1759,4 +1762,296 @@ func extractPluginIDFromRepo(repo string) string {
 		return strings.ToLower(pluginName)
 	}
 	return repo
+}
+
+// =============================================================================
+// Pre-built Binary Installation
+// =============================================================================
+
+// getPlatformString returns the platform identifier for the current system
+func getPlatformString() string {
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+
+	if goos != "linux" {
+		return "" // Only Linux pre-built binaries are available
+	}
+
+	switch goarch {
+	case "amd64":
+		return "linux-amd64"
+	case "386":
+		return "linux-386"
+	case "arm64":
+		return "linux-arm64"
+	case "arm":
+		// Detect ARM version - default to ARM6 for compatibility
+		return "linux-arm6"
+	default:
+		return ""
+	}
+}
+
+// GitHubRelease represents a GitHub release from the API
+type GitHubRelease struct {
+	TagName    string               `json:"tag_name"`
+	Name       string               `json:"name"`
+	Prerelease bool                 `json:"prerelease"`
+	Assets     []GitHubReleaseAsset `json:"assets"`
+}
+
+// GitHubReleaseAsset represents an asset in a GitHub release
+type GitHubReleaseAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+	Size               int64  `json:"size"`
+}
+
+// downloadPrebuiltBinary downloads and installs a pre-built plugin binary from GitHub releases
+func (pi *PluginInstaller) downloadPrebuiltBinary(org, repo, pluginID string, useBeta bool) error {
+	platform := getPlatformString()
+	if platform == "" {
+		return fmt.Errorf("no pre-built binary available for this platform: %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+
+	// Determine which release to fetch
+	var releaseURL string
+	if useBeta {
+		releaseURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/beta", org, repo)
+	} else {
+		releaseURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", org, repo)
+	}
+
+	// Create request
+	req, err := http.NewRequest("GET", releaseURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add authentication if available
+	token, tokenErr := pi.config.GetTokenForOrganization(org)
+	if tokenErr == nil && token != "" {
+		req.Header.Add("Authorization", "token "+token)
+	}
+	req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
+	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
+	// Make request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to fetch release info: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("release not found (HTTP %d)", resp.StatusCode)
+	}
+
+	// Parse release
+	var release GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return fmt.Errorf("failed to parse release info: %v", err)
+	}
+
+	// Find the appropriate asset for this platform
+	var assetURL string
+	var assetName string
+	versionSuffix := release.TagName
+	if useBeta {
+		versionSuffix = "beta"
+	}
+
+	expectedName := fmt.Sprintf("%s-%s-%s.tar.gz", pluginID, platform, versionSuffix)
+
+	for _, asset := range release.Assets {
+		if asset.Name == expectedName {
+			assetURL = asset.BrowserDownloadURL
+			assetName = asset.Name
+			break
+		}
+		// Also try without version suffix for beta
+		if useBeta && strings.Contains(asset.Name, platform) && strings.HasSuffix(asset.Name, ".tar.gz") {
+			assetURL = asset.BrowserDownloadURL
+			assetName = asset.Name
+		}
+	}
+
+	if assetURL == "" {
+		return fmt.Errorf("no binary found for platform %s in release %s", platform, release.TagName)
+	}
+
+	log.Printf("Downloading pre-built binary: %s", assetName)
+
+	// Download the asset
+	assetResp, err := http.Get(assetURL)
+	if err != nil {
+		return fmt.Errorf("failed to download binary: %v", err)
+	}
+	defer assetResp.Body.Close()
+
+	if assetResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download binary (HTTP %d)", assetResp.StatusCode)
+	}
+
+	// Create plugin directory
+	pluginDir := filepath.Join(pi.pluginsDir, pluginID)
+	if err := os.MkdirAll(pluginDir, 0755); err != nil {
+		return fmt.Errorf("failed to create plugin directory: %v", err)
+	}
+
+	// Extract the tarball
+	if err := pi.extractTarGz(assetResp.Body, pluginDir); err != nil {
+		return fmt.Errorf("failed to extract binary: %v", err)
+	}
+
+	// Make binary executable
+	binaryPath := filepath.Join(pluginDir, pluginID)
+	if err := os.Chmod(binaryPath, 0755); err != nil {
+		log.Printf("Warning: Failed to set executable permission: %v", err)
+	}
+
+	log.Printf("Successfully installed pre-built binary for %s", pluginID)
+	return nil
+}
+
+// extractTarGz extracts a tar.gz archive to the destination directory
+func (pi *PluginInstaller) extractTarGz(reader io.Reader, destDir string) error {
+	// Create gzip reader
+	gzReader, err := gzip.NewReader(reader)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %v", err)
+	}
+	defer gzReader.Close()
+
+	// Create tar reader
+	tarReader := tar.NewReader(gzReader)
+
+	// Protection limits
+	const (
+		maxFileSize  = 100 * 1024 * 1024 // 100 MB per file
+		maxTotalSize = 500 * 1024 * 1024 // 500 MB total
+		maxFiles     = 1000
+	)
+
+	var totalSize int64
+	fileCount := 0
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar entry: %v", err)
+		}
+
+		fileCount++
+		if fileCount > maxFiles {
+			return fmt.Errorf("too many files in archive (max %d)", maxFiles)
+		}
+
+		// Validate file path to prevent path traversal
+		targetPath := filepath.Join(destDir, header.Name)
+		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)+string(os.PathSeparator)) {
+			return fmt.Errorf("invalid file path in archive: %s", header.Name)
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				return fmt.Errorf("failed to create directory: %v", err)
+			}
+
+		case tar.TypeReg:
+			// Check file size
+			if header.Size > maxFileSize {
+				return fmt.Errorf("file %s exceeds maximum size", header.Name)
+			}
+			totalSize += header.Size
+			if totalSize > maxTotalSize {
+				return fmt.Errorf("total extracted size exceeds maximum")
+			}
+
+			// Create parent directory if needed
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory: %v", err)
+			}
+
+			// Create file
+			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("failed to create file: %v", err)
+			}
+
+			// Copy with size limit
+			written, err := io.CopyN(outFile, tarReader, header.Size)
+			outFile.Close()
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("failed to extract file: %v", err)
+			}
+			if written != header.Size {
+				return fmt.Errorf("incomplete file extraction: %s", header.Name)
+			}
+
+		case tar.TypeSymlink:
+			// Skip symlinks for security
+			log.Printf("Warning: Skipping symlink in archive: %s", header.Name)
+		}
+	}
+
+	return nil
+}
+
+// InstallFromGitHubWithBinary installs a plugin, preferring pre-built binaries
+func (pi *PluginInstaller) InstallFromGitHubWithBinary(org string, repo string, useBeta bool) (PluginMetadata, error) {
+	// Extract plugin ID from repo name
+	pluginID := repo
+	if strings.HasPrefix(repo, "Plugin_") {
+		pluginID = strings.TrimPrefix(repo, "Plugin_")
+	}
+
+	// Check if plugin already exists
+	pluginDir := filepath.Join(pi.pluginsDir, pluginID)
+	if _, err := os.Stat(pluginDir); !os.IsNotExist(err) {
+		return PluginMetadata{}, fmt.Errorf("plugin with ID %s already exists", pluginID)
+	}
+
+	// Try to download pre-built binary first
+	err := pi.downloadPrebuiltBinary(org, repo, pluginID, useBeta)
+	if err != nil {
+		log.Printf("Pre-built binary not available: %v", err)
+		log.Printf("Falling back to source installation...")
+
+		// Fall back to cloning from GitHub
+		branch := "main"
+		if useBeta {
+			branch = "main" // Beta still uses main branch, just different release
+		}
+		return pi.InstallFromGitHub(org, repo, branch)
+	}
+
+	// Read plugin metadata
+	metadata, err := pi.readPluginMetadata(pluginDir)
+	if err != nil {
+		// Create basic metadata if plugin.json wasn't included
+		metadata = PluginMetadata{
+			ID:      pluginID,
+			Name:    pluginID,
+			Version: "unknown",
+			Status:  "active",
+		}
+	}
+
+	metadata.Path = pluginDir
+	metadata.Status = "active"
+	metadata.GitInfo = GitVersionInfo{
+		Repository:   repo,
+		Organization: org,
+	}
+
+	// Reload plugins in the plugin manager
+	pi.manager.RegisterPlugins()
+
+	return metadata, nil
 }
