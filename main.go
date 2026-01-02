@@ -154,6 +154,72 @@ func main() {
 			c.JSON(http.StatusOK, networkInfo)
 		})
 
+		// Get network interfaces for auto-detection
+		api.GET("/interfaces", func(c *gin.Context) {
+			interfaces, err := core.GetInterfaces()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, interfaces)
+		})
+
+		// Get primary WiFi interface
+		api.GET("/interfaces/wifi", func(c *gin.Context) {
+			iface, err := core.GetPrimaryWiFiInterface()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			if iface == nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "No WiFi interface found"})
+				return
+			}
+			c.JSON(http.StatusOK, iface)
+		})
+
+		// Get primary Ethernet interface
+		api.GET("/interfaces/ethernet", func(c *gin.Context) {
+			iface, err := core.GetPrimaryEthernetInterface()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			if iface == nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "No Ethernet interface found"})
+				return
+			}
+			c.JSON(http.StatusOK, iface)
+		})
+
+		// Get interface by type
+		api.GET("/interfaces/type/:type", func(c *gin.Context) {
+			ifaceType := c.Param("type")
+			var t core.InterfaceType
+			switch ifaceType {
+			case "ethernet":
+				t = core.InterfaceTypeEthernet
+			case "wifi":
+				t = core.InterfaceTypeWiFi
+			case "loopback":
+				t = core.InterfaceTypeLoopback
+			case "virtual":
+				t = core.InterfaceTypeVirtual
+			case "bridge":
+				t = core.InterfaceTypeBridge
+			case "vpn":
+				t = core.InterfaceTypeVPN
+			default:
+				t = core.InterfaceTypeUnknown
+			}
+			interfaces, err := core.GetInterfacesByType(t)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, interfaces)
+		})
+
 		// General plugin runner endpoint for dashboard features
 		api.POST("/run-plugin", func(c *gin.Context) {
 			var request struct {

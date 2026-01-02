@@ -14,11 +14,12 @@ import {
   Shield,
   AlertTriangle,
   Layers,
-  ExternalLink
+  ExternalLink,
+  Radio
 } from 'lucide-react'
 import StatsCard from '../components/dashboard/StatsCard'
 import InterfaceDetails from '../components/dashboard/InterfaceDetails'
-import { networkApi } from '../api'
+import { networkApi, interfacesApi } from '../api'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -43,6 +44,7 @@ export default function Dashboard({ networkData, connected }) {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [localData, setLocalData] = useState(null)
+  const [interfaces, setInterfaces] = useState(null)
 
   // Use WebSocket data or fetch manually
   useEffect(() => {
@@ -57,6 +59,7 @@ export default function Dashboard({ networkData, connected }) {
     if (!networkData) {
       fetchNetworkInfo()
     }
+    fetchInterfaces()
   }, [])
 
   const fetchNetworkInfo = async () => {
@@ -66,6 +69,15 @@ export default function Dashboard({ networkData, connected }) {
       setLastUpdated(new Date())
     } catch (error) {
       console.error('Failed to fetch network info:', error)
+    }
+  }
+
+  const fetchInterfaces = async () => {
+    try {
+      const response = await interfacesApi.getAll()
+      setInterfaces(response.data)
+    } catch (error) {
+      console.error('Failed to fetch interfaces:', error)
     }
   }
 
@@ -382,6 +394,150 @@ export default function Dashboard({ networkData, connected }) {
           )}
         </div>
       </motion.div>
+
+      {/* Available Network Interfaces */}
+      {interfaces && (
+        <motion.div variants={itemVariants}>
+          <div className="glass-card gradient-cyan p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-cyan-500/20">
+                  <Radio className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Available Interfaces</h3>
+                  <p className="text-xs text-dark-400">Auto-detected for plugin use</p>
+                </div>
+              </div>
+              <button
+                onClick={fetchInterfaces}
+                className="p-2 rounded-lg hover:bg-dark-800/50 transition-colors"
+                title="Refresh interfaces"
+              >
+                <RefreshCw className="w-4 h-4 text-dark-400" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* WiFi Interfaces */}
+              {interfaces.wifi?.length > 0 && (
+                <div className="bg-dark-900/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Wifi className="w-4 h-4 text-cyan-400" />
+                    <span className="text-sm font-medium text-white">WiFi</span>
+                    <span className="text-xs text-dark-500">({interfaces.wifi.length})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {interfaces.wifi.map((iface) => (
+                      <div 
+                        key={iface.name} 
+                        className={`flex items-center justify-between p-2 rounded-lg ${
+                          interfaces.primaryWifi?.name === iface.name 
+                            ? 'bg-cyan-500/10 border border-cyan-500/30' 
+                            : 'bg-dark-800/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${iface.isUp ? 'bg-green-400' : 'bg-dark-600'}`} />
+                          <span className="font-mono text-sm text-white">{iface.name}</span>
+                          {interfaces.primaryWifi?.name === iface.name && (
+                            <span className="text-xs bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">Primary</span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {iface.ssid && (
+                            <p className="text-xs text-dark-400">📶 {iface.ssid}</p>
+                          )}
+                          {iface.ipv4 && (
+                            <p className="text-xs text-dark-500 font-mono">{iface.ipv4}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Ethernet Interfaces */}
+              {interfaces.ethernet?.length > 0 && (
+                <div className="bg-dark-900/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Cable className="w-4 h-4 text-green-400" />
+                    <span className="text-sm font-medium text-white">Ethernet</span>
+                    <span className="text-xs text-dark-500">({interfaces.ethernet.length})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {interfaces.ethernet.map((iface) => (
+                      <div 
+                        key={iface.name} 
+                        className={`flex items-center justify-between p-2 rounded-lg ${
+                          interfaces.primaryEthernet?.name === iface.name 
+                            ? 'bg-green-500/10 border border-green-500/30' 
+                            : 'bg-dark-800/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${iface.isUp && iface.hasCarrier ? 'bg-green-400' : 'bg-dark-600'}`} />
+                          <span className="font-mono text-sm text-white">{iface.name}</span>
+                          {interfaces.primaryEthernet?.name === iface.name && (
+                            <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded">Primary</span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {iface.speed && (
+                            <p className="text-xs text-dark-400">⚡ {iface.speed}</p>
+                          )}
+                          {iface.ipv4 && (
+                            <p className="text-xs text-dark-500 font-mono">{iface.ipv4}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Virtual / Other Interfaces */}
+              {interfaces.virtual?.length > 0 && (
+                <div className="bg-dark-900/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Network className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-medium text-white">Virtual/VPN</span>
+                    <span className="text-xs text-dark-500">({interfaces.virtual.length})</span>
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {interfaces.virtual.slice(0, 5).map((iface) => (
+                      <div 
+                        key={iface.name} 
+                        className="flex items-center justify-between p-2 rounded-lg bg-dark-800/30"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${iface.isUp ? 'bg-purple-400' : 'bg-dark-600'}`} />
+                          <span className="font-mono text-sm text-white">{iface.name}</span>
+                        </div>
+                        <span className="text-xs text-dark-500">{iface.type}</span>
+                      </div>
+                    ))}
+                    {interfaces.virtual.length > 5 && (
+                      <p className="text-xs text-dark-500 text-center pt-1">
+                        +{interfaces.virtual.length - 5} more
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* No interfaces found */}
+            {!interfaces.wifi?.length && !interfaces.ethernet?.length && !interfaces.virtual?.length && (
+              <div className="text-center py-6 text-dark-400">
+                <Network className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No network interfaces detected</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Connection Path Visualization */}
       <motion.div variants={itemVariants}>

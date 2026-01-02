@@ -63,6 +63,21 @@ export const networkApi = {
   getNetworkInfo: () => api.get('/network-info'),
 }
 
+// Interface Detection API
+export const interfacesApi = {
+  // Get all interfaces categorized
+  getAll: () => api.get('/interfaces'),
+  
+  // Get primary WiFi interface
+  getPrimaryWiFi: () => api.get('/interfaces/wifi'),
+  
+  // Get primary Ethernet interface
+  getPrimaryEthernet: () => api.get('/interfaces/ethernet'),
+  
+  // Get interfaces by type (ethernet, wifi, loopback, virtual, bridge, vpn)
+  getByType: (type) => api.get(`/interfaces/type/${type}`),
+}
+
 // Plugins API with enhanced functionality
 export const pluginsApi = {
   // Get all registered plugins

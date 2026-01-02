@@ -12,14 +12,184 @@ import {
   Copy,
   Download,
   Repeat,
-  StopCircle
+  StopCircle,
+  Wifi,
+  Network
 } from 'lucide-react'
 import { usePlugin } from '../context/PluginContext'
 import { Card, CardHeader, Button, Badge, Spinner, EmptyState, ProgressBar } from '../components/common'
 import { initializeParameters, validateParameters, PARAMETER_TYPES } from '../types/plugins'
+import { interfacesApi } from '../api'
+
+// Check if parameter should use interface selection
+function isInterfaceParam(param) {
+  const name = (param.name || param.Name || param.id || '').toLowerCase()
+  const desc = (param.description || '').toLowerCase()
+  
+  // Check for interface-related keywords
+  const interfaceKeywords = ['interface', 'iface', 'device', 'adapter', 'nic']
+  const wifiKeywords = ['wifi', 'wireless', 'wlan', 'wi-fi']
+  const ethKeywords = ['ethernet', 'eth', 'lan', 'wired']
+  
+  const isInterface = interfaceKeywords.some(k => name.includes(k) || desc.includes(k))
+  const isWifi = wifiKeywords.some(k => name.includes(k) || desc.includes(k))
+  const isEth = ethKeywords.some(k => name.includes(k) || desc.includes(k))
+  
+  if (isWifi) return 'wifi'
+  if (isEth) return 'ethernet'
+  if (isInterface) return 'all'
+  return null
+}
+
+// Interface selector component with auto-detection
+function InterfaceSelector({ param, value, onChange, error, interfaceType }) {
+  const [interfaces, setInterfaces] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(null)
+
+  useEffect(() => {
+    const fetchInterfaces = async () => {
+      try {
+        setLoading(true)
+        const response = await interfacesApi.getAll()
+        setInterfaces(response.data)
+        
+        // Auto-select primary interface if no value set
+        if (!value && response.data) {
+          let autoSelect = null
+          if (interfaceType === 'wifi' && response.data.primaryWifi) {
+            autoSelect = response.data.primaryWifi.name
+          } else if (interfaceType === 'ethernet' && response.data.primaryEthernet) {
+            autoSelect = response.data.primaryEthernet.name
+          } else if (response.data.primary) {
+            autoSelect = response.data.primary.name
+          }
+          if (autoSelect) {
+            onChange(param.id || param.Name, autoSelect)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch interfaces:', err)
+        setFetchError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchInterfaces()
+  }, [interfaceType])
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-dark-900/50 border border-dark-800 rounded-xl">
+        <Spinner size="sm" className="text-primary-400" />
+        <span className="text-dark-400">Detecting interfaces...</span>
+      </div>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <input
+        type="text"
+        value={value ?? ''}
+        onChange={(e) => onChange(param.id || param.Name, e.target.value)}
+        placeholder="Enter interface name (e.g., wlan0, eth0)"
+        className={`
+          w-full px-4 py-2.5 bg-dark-900/50 border rounded-xl text-white 
+          placeholder:text-dark-500 focus:outline-none focus:ring-2 
+          transition-all duration-200 border-dark-800 focus:border-primary-500/50 focus:ring-primary-500/20
+        `}
+      />
+    )
+  }
+
+  // Filter interfaces based on type
+  let availableInterfaces = interfaces?.all || []
+  if (interfaceType === 'wifi') {
+    availableInterfaces = interfaces?.wifi || []
+  } else if (interfaceType === 'ethernet') {
+    availableInterfaces = interfaces?.ethernet || []
+  } else {
+    // For 'all', filter out loopback
+    availableInterfaces = availableInterfaces.filter(i => i.type !== 'loopback')
+  }
+
+  const baseInputClass = `
+    w-full px-4 py-2.5 bg-dark-900/50 border rounded-xl text-white 
+    placeholder:text-dark-500 focus:outline-none focus:ring-2 
+    transition-all duration-200
+    ${error 
+      ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' 
+      : 'border-dark-800 focus:border-primary-500/50 focus:ring-primary-500/20'}
+  `
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={value ?? ''}
+        onChange={(e) => onChange(param.id || param.Name, e.target.value)}
+        className={baseInputClass}
+      >
+        <option value="">Select interface...</option>
+        {availableInterfaces.map((iface) => (
+          <option key={iface.name} value={iface.name}>
+            {iface.name} 
+            {iface.ipv4 ? ` (${iface.ipv4})` : ''} 
+            {iface.type === 'wifi' ? ' - WiFi' : ''}
+            {iface.type === 'ethernet' ? ' - Ethernet' : ''}
+            {!iface.isUp ? ' [Down]' : ''}
+          </option>
+        ))}
+      </select>
+      
+      {/* Show interface details for selected */}
+      {value && availableInterfaces.length > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {(() => {
+            const selected = availableInterfaces.find(i => i.name === value)
+            if (!selected) return null
+            return (
+              <>
+                {selected.type && (
+                  <Badge variant={selected.type === 'wifi' ? 'cyan' : 'green'} size="sm">
+                    {selected.type === 'wifi' ? <Wifi className="w-3 h-3 mr-1" /> : <Network className="w-3 h-3 mr-1" />}
+                    {selected.type}
+                  </Badge>
+                )}
+                {selected.ssid && (
+                  <Badge variant="purple" size="sm">📶 {selected.ssid}</Badge>
+                )}
+                {selected.speed && (
+                  <Badge variant="default" size="sm">⚡ {selected.speed}</Badge>
+                )}
+                {selected.isUp && (
+                  <Badge variant="green" size="sm">● Active</Badge>
+                )}
+              </>
+            )
+          })()}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Parameter input component
 function ParameterInput({ param, value, onChange, error }) {
+  // Check if this is an interface parameter and use InterfaceSelector
+  const interfaceType = isInterfaceParam(param)
+  if (interfaceType && param.type !== 'select') {
+    return (
+      <InterfaceSelector 
+        param={param} 
+        value={value} 
+        onChange={onChange} 
+        error={error}
+        interfaceType={interfaceType}
+      />
+    )
+  }
+
   const handleChange = (e) => {
     let newValue = e.target.value
     

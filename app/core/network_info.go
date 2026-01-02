@@ -956,16 +956,20 @@ func detectNAT(info *NetworkInfo) {
 		return
 	}
 
-	// Check if gateway is in private range
-	gatewayPrivate := isPrivateIP(info.Gateway)
-
-	// Analyze traceroute for NAT layers
-	natLayers, externalRouter := analyzeNATLayers(info.Gateway)
+	// Analyze traceroute for NAT layers - count ALL private/NAT hops including gateway
+	natLayers, privateRouters := analyzeNATLayers(info.Ipv4, info.Gateway)
 	info.NatLayers = natLayers
-	info.ExternalRouter = externalRouter
+
+	// Set external router if we have more than one private hop
+	if len(privateRouters) > 1 {
+		// External router is the second-to-last private hop (last one before ISP)
+		info.ExternalRouter = privateRouters[len(privateRouters)-1]
+	} else if len(privateRouters) == 1 && privateRouters[0] != info.Gateway {
+		info.ExternalRouter = privateRouters[0]
+	}
 
 	// Determine NAT type
-	if natLayers > 1 || (gatewayPrivate && externalRouter != "") {
+	if natLayers > 1 {
 		info.DoubleNat = true
 		info.NatType = "Double NAT"
 	} else if natLayers == 1 {
@@ -1019,22 +1023,32 @@ func isPrivateIP(ipStr string) bool {
 }
 
 // analyzeNATLayers uses traceroute to detect multiple NAT layers
-func analyzeNATLayers(gateway string) (int, string) {
-	// Run traceroute to a public IP
-	cmd := exec.Command("traceroute", "-n", "-m", "10", "-w", "1", "-q", "1", "8.8.8.8")
+// Returns the number of NAT layers and list of private router IPs found
+func analyzeNATLayers(localIP, gateway string) (int, []string) {
+	var privateRouters []string
+
+	// The gateway is always the first NAT layer (if we're behind NAT)
+	if gateway != "" && isPrivateIP(gateway) {
+		privateRouters = append(privateRouters, gateway)
+	}
+
+	// Run traceroute to a public IP to find additional NAT layers
+	cmd := exec.Command("traceroute", "-n", "-m", "15", "-w", "2", "-q", "1", "8.8.8.8")
 	output, err := cmd.Output()
 	if err != nil {
 		// Try tracepath as fallback
-		cmd = exec.Command("tracepath", "-n", "-m", "10", "8.8.8.8")
+		cmd = exec.Command("tracepath", "-n", "-m", "15", "8.8.8.8")
 		output, err = cmd.Output()
 		if err != nil {
-			return 1, ""
+			// If traceroute fails, just return what we know from gateway
+			if len(privateRouters) > 0 {
+				return len(privateRouters), privateRouters
+			}
+			return 1, privateRouters
 		}
 	}
 
 	lines := strings.Split(string(output), "\n")
-	var privateHops []string
-	var firstPublicHop string
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -1048,10 +1062,13 @@ func analyzeNATLayers(gateway string) (int, string) {
 		}
 
 		// Extract IP from traceroute output
+		// Traceroute format: "1  192.168.1.1  0.5 ms" or "1  192.168.1.1 (192.168.1.1)  0.5 ms"
 		var hopIP string
 		for _, field := range fields {
-			if net.ParseIP(field) != nil {
-				hopIP = field
+			// Remove parentheses if present
+			cleanField := strings.Trim(field, "()")
+			if net.ParseIP(cleanField) != nil {
+				hopIP = cleanField
 				break
 			}
 		}
@@ -1060,28 +1077,35 @@ func analyzeNATLayers(gateway string) (int, string) {
 			continue
 		}
 
-		// Skip if it's our gateway (first hop)
-		if hopIP == gateway {
+		// Skip our own IP
+		if hopIP == localIP {
 			continue
 		}
 
-		// Check if this hop is private
+		// Check if this hop is private or CGNAT
 		if isPrivateIP(hopIP) || isCGNATRange(hopIP) {
-			privateHops = append(privateHops, hopIP)
-		} else if firstPublicHop == "" {
-			firstPublicHop = hopIP
-			break // Stop at first public IP
+			// Don't add duplicates
+			isDuplicate := false
+			for _, existing := range privateRouters {
+				if existing == hopIP {
+					isDuplicate = true
+					break
+				}
+			}
+			if !isDuplicate {
+				privateRouters = append(privateRouters, hopIP)
+			}
+		} else {
+			// We hit a public IP, stop here
+			break
 		}
 	}
 
-	// NAT layers = number of private hops before reaching public internet + 1
-	natLayers := len(privateHops) + 1
-
-	// External router is the last private hop before public internet
-	var externalRouter string
-	if len(privateHops) > 0 {
-		externalRouter = privateHops[len(privateHops)-1]
+	// Number of NAT layers = number of unique private routers found
+	natLayers := len(privateRouters)
+	if natLayers == 0 {
+		natLayers = 1 // Assume at least one NAT if we're behind NAT
 	}
 
-	return natLayers, externalRouter
+	return natLayers, privateRouters
 }
