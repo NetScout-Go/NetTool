@@ -20,7 +20,9 @@ import {
   Layers,
   Zap,
   GitBranch,
-  Code
+  Code,
+  HardDrive,
+  Info
 } from 'lucide-react'
 import { pluginManagerApi } from '../api'
 
@@ -36,6 +38,9 @@ export default function PluginManager() {
   const [selectedPlugins, setSelectedPlugins] = useState(new Set())
   const [isMultiInstalling, setIsMultiInstalling] = useState(false)
   const [releaseChannel, setReleaseChannel] = useState('stable') // 'stable', 'beta', or 'source'
+  const [pluginAvailability, setPluginAvailability] = useState({}) // Map of repository -> availability info
+  const [checkingAvailability, setCheckingAvailability] = useState(false)
+  const [platform, setPlatform] = useState('')
 
   // Helper to get property with fallback for both casing styles
   const getPluginProp = (plugin, prop) => {
@@ -65,15 +70,28 @@ export default function PluginManager() {
       
       // Handle new response format with metadata
       const availableData = available.data
+      let plugins = []
       if (availableData && 'plugins' in availableData) {
-        setAvailablePlugins(availableData.plugins || [])
+        plugins = availableData.plugins || []
+        setAvailablePlugins(plugins)
         setLastUpdated(availableData.lastUpdated ? new Date(availableData.lastUpdated * 1000) : null)
         setFromCache(availableData.fromCache || false)
       } else if (Array.isArray(availableData)) {
         // Fallback for old format (array directly)
-        setAvailablePlugins(availableData)
+        plugins = availableData
+        setAvailablePlugins(plugins)
       } else {
         setAvailablePlugins([])
+      }
+
+      // Check availability for all plugins
+      const notInstalled = plugins.filter(p => !isInstalled(p))
+      const repositories = notInstalled
+        .map(p => getPluginRepository(p))
+        .filter(Boolean)
+      
+      if (repositories.length > 0) {
+        checkPluginsAvailability(repositories)
       }
     } catch (err) {
       setError('Failed to load plugins: ' + (err.message || 'Unknown error'))
@@ -83,10 +101,48 @@ export default function PluginManager() {
     }
   }
 
-  const handleInstall = async (repository) => {
+  // Check availability for multiple plugins
+  const checkPluginsAvailability = async (repositories) => {
+    setCheckingAvailability(true)
+    try {
+      const response = await pluginManagerApi.checkAvailabilityBulk(repositories)
+      const data = response.data
+      
+      if (data.platform) {
+        setPlatform(data.platform)
+      }
+      
+      if (data.results) {
+        const availabilityMap = {}
+        data.results.forEach(result => {
+          availabilityMap[result.repository] = result
+        })
+        setPluginAvailability(availabilityMap)
+      }
+    } catch (err) {
+      console.error('Failed to check plugin availability:', err)
+    } finally {
+      setCheckingAvailability(false)
+    }
+  }
+
+  // Get effective channel based on availability
+  const getEffectiveChannel = (repository) => {
+    const avail = pluginAvailability[repository]
+    if (!avail) return releaseChannel
+    
+    if (releaseChannel === 'stable' && avail.hasStable) return 'stable'
+    if (releaseChannel === 'beta' && avail.hasBeta) return 'beta'
+    if (releaseChannel === 'stable' && !avail.hasStable && avail.hasBeta) return 'beta' // Fallback to beta
+    if (releaseChannel === 'beta' && !avail.hasBeta && avail.hasStable) return 'stable' // Fallback to stable
+    return 'source' // Final fallback
+  }
+
+  const handleInstall = async (repository, overrideChannel = null) => {
+    const channel = overrideChannel || getEffectiveChannel(repository)
     setActionLoading(prev => ({ ...prev, [repository]: true }))
     try {
-      await pluginManagerApi.install(repository, releaseChannel)
+      await pluginManagerApi.install(repository, channel)
       await loadPlugins()
       // Remove from selection after successful install
       setSelectedPlugins(prev => {
@@ -111,9 +167,10 @@ export default function PluginManager() {
     const errors = []
     
     for (const repository of repositories) {
+      const channel = getEffectiveChannel(repository)
       setActionLoading(prev => ({ ...prev, [repository]: true }))
       try {
-        await pluginManagerApi.install(repository, releaseChannel)
+        await pluginManagerApi.install(repository, channel)
       } catch (err) {
         console.error(`Failed to install ${repository}:`, err)
         errors.push(`${repository}: ${err.message || 'Unknown error'}`)
@@ -252,6 +309,20 @@ export default function PluginManager() {
           <h1 className="text-2xl font-bold text-white">Plugin Manager</h1>
           <div className="flex items-center gap-3 mt-1">
             <p className="text-dark-400">Install and manage network analysis plugins</p>
+            {platform && (
+              <div className="flex items-center gap-1.5 text-xs text-dark-500">
+                <span className="text-dark-600">•</span>
+                <HardDrive className="w-3 h-3" />
+                <span>{platform}</span>
+              </div>
+            )}
+            {!platform && (
+              <div className="flex items-center gap-1.5 text-xs text-yellow-500/70">
+                <span className="text-dark-600">•</span>
+                <Info className="w-3 h-3" />
+                <span>Source builds only</span>
+              </div>
+            )}
             {lastUpdated && (
               <div className="flex items-center gap-1.5 text-xs text-dark-500">
                 <span className="text-dark-600">•</span>
@@ -264,43 +335,39 @@ export default function PluginManager() {
         </div>
         <div className="flex items-center gap-3">
           {/* Release Channel Selector */}
-          <div className="flex items-center gap-2 bg-dark-900/50 rounded-lg p-1">
-            <button
-              onClick={() => setReleaseChannel('stable')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                releaseChannel === 'stable'
-                  ? 'bg-green-500/20 text-green-400'
-                  : 'text-dark-400 hover:text-white'
-              }`}
-              title="Install from stable releases (recommended)"
-            >
-              <Tag className="w-3.5 h-3.5" />
-              Stable
-            </button>
-            <button
-              onClick={() => setReleaseChannel('beta')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                releaseChannel === 'beta'
-                  ? 'bg-yellow-500/20 text-yellow-400'
-                  : 'text-dark-400 hover:text-white'
-              }`}
-              title="Install from beta releases (latest features, may be unstable)"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              Beta
-            </button>
-            <button
-              onClick={() => setReleaseChannel('source')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                releaseChannel === 'source'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-dark-400 hover:text-white'
-              }`}
-              title="Clone from source and compile locally"
-            >
-              <Code className="w-3.5 h-3.5" />
-              Source
-            </button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2 bg-dark-900/50 rounded-lg p-1">
+              <button
+                onClick={() => setReleaseChannel('stable')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  releaseChannel === 'stable'
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'text-dark-400 hover:text-white'
+                }`}
+                title="Install from beta releases (latest features, may be unstable)"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Beta
+              </button>
+              <button
+                onClick={() => setReleaseChannel('source')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  releaseChannel === 'source'
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'text-dark-400 hover:text-white'
+                }`}
+                title="Clone from source and compile locally"
+              >
+                <Code className="w-3.5 h-3.5" />
+                Source
+              </button>
+            </div>
+            {checkingAvailability && (
+              <span className="text-[10px] text-dark-500 flex items-center gap-1">
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                Checking availability...
+              </span>
+            )}
           </div>
           <button
             onClick={handleRefreshCatalog}
@@ -488,6 +555,8 @@ export default function PluginManager() {
                   const category = getPluginProp(plugin, 'category')
                   const tags = plugin.tags || plugin.Tags || []
                   const isSelected = repository && selectedPlugins.has(repository)
+                  const avail = repository ? pluginAvailability[repository] : null
+                  const effectiveChannel = getEffectiveChannel(repository)
                   
                   return (
                     <motion.div
@@ -534,15 +603,56 @@ export default function PluginManager() {
                             </div>
                           </div>
                         </div>
+                        {/* Availability badges */}
+                        {avail && (
+                          <div className="flex gap-1">
+                            {avail.hasStable && (
+                              <span className="px-1.5 py-0.5 text-[10px] rounded bg-green-500/20 text-green-400" title={`Stable: ${avail.stableVersion}`}>
+                                <Tag className="w-2.5 h-2.5 inline" />
+                              </span>
+                            )}
+                            {avail.hasBeta && (
+                              <span className="px-1.5 py-0.5 text-[10px] rounded bg-yellow-500/20 text-yellow-400" title={`Beta: ${avail.betaVersion}`}>
+                                <Zap className="w-2.5 h-2.5 inline" />
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       
-                      <p className="text-sm text-dark-300 mb-4 line-clamp-2 min-h-[40px]">
+                      <p className="text-sm text-dark-300 mb-3 line-clamp-2 min-h-[40px]">
                         {getPluginDescription(plugin) || 'A network analysis plugin for NetTool'}
                       </p>
 
+                      {/* Availability info */}
+                      {avail && (
+                        <div className="flex flex-wrap gap-1 mb-3 text-[10px]">
+                          {avail.hasStable && (
+                            <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 flex items-center gap-1">
+                              <Tag className="w-2.5 h-2.5" />
+                              {avail.stableVersion}
+                              {avail.stableSize && <span className="text-green-500/60">({(avail.stableSize / 1024 / 1024).toFixed(1)}MB)</span>}
+                            </span>
+                          )}
+                          {avail.hasBeta && (
+                            <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 flex items-center gap-1">
+                              <Zap className="w-2.5 h-2.5" />
+                              Beta
+                              {avail.betaSize && <span className="text-yellow-500/60">({(avail.betaSize / 1024 / 1024).toFixed(1)}MB)</span>}
+                            </span>
+                          )}
+                          {!avail.hasStable && !avail.hasBeta && (
+                            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 flex items-center gap-1">
+                              <Code className="w-2.5 h-2.5" />
+                              Source only
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Category/Tags */}
                       {(category || tags.length > 0) && (
-                        <div className="flex flex-wrap gap-1 mb-4">
+                        <div className="flex flex-wrap gap-1 mb-3">
                           {category && (
                             <span className="px-2 py-0.5 text-xs rounded-full bg-dark-700/50 text-dark-300">
                               {category}
@@ -557,20 +667,74 @@ export default function PluginManager() {
                       )}
 
                       <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                        {/* Install button with channel indicator */}
                         <button
                           onClick={() => handleInstall(repository)}
                           disabled={actionLoading[repository] || !repository}
-                          className="btn-primary text-sm flex-1 disabled:opacity-50"
+                          className={`text-sm flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg font-medium transition-all disabled:opacity-50 ${
+                            effectiveChannel === 'stable' 
+                              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                              : effectiveChannel === 'beta'
+                              ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+                              : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                          }`}
                         >
                           {actionLoading[repository] ? (
-                            <RefreshCw className="w-4 h-4 animate-spin mx-auto" />
+                            <RefreshCw className="w-4 h-4 animate-spin" />
                           ) : (
                             <>
-                              <Download className="w-4 h-4 inline mr-1" />
-                              Install
+                              {effectiveChannel === 'stable' && <Tag className="w-3.5 h-3.5" />}
+                              {effectiveChannel === 'beta' && <Zap className="w-3.5 h-3.5" />}
+                              {effectiveChannel === 'source' && <Code className="w-3.5 h-3.5" />}
+                              Install {effectiveChannel !== 'stable' && effectiveChannel}
                             </>
                           )}
                         </button>
+                        
+                        {/* Channel dropdown for this plugin */}
+                        {avail && (avail.hasStable || avail.hasBeta) && (
+                          <div className="relative group">
+                            <button
+                              className="p-2 rounded-lg bg-dark-800/50 text-dark-400 hover:text-white hover:bg-dark-700/50 transition-colors"
+                              title="Choose install type"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </button>
+                            <div className="absolute right-0 bottom-full mb-1 hidden group-hover:block z-10">
+                              <div className="bg-dark-800 border border-dark-700 rounded-lg shadow-xl p-1 min-w-[120px]">
+                                {avail.hasStable && (
+                                  <button
+                                    onClick={() => handleInstall(repository, 'stable')}
+                                    disabled={actionLoading[repository]}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-green-400 hover:bg-green-500/10 rounded transition-colors"
+                                  >
+                                    <Tag className="w-3 h-3" />
+                                    Stable
+                                  </button>
+                                )}
+                                {avail.hasBeta && (
+                                  <button
+                                    onClick={() => handleInstall(repository, 'beta')}
+                                    disabled={actionLoading[repository]}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-yellow-400 hover:bg-yellow-500/10 rounded transition-colors"
+                                  >
+                                    <Zap className="w-3 h-3" />
+                                    Beta
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleInstall(repository, 'source')}
+                                  disabled={actionLoading[repository]}
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                                >
+                                  <Code className="w-3 h-3" />
+                                  Source
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
                         {repository && (
                           <a
                             href={repository}

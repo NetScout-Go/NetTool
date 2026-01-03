@@ -124,6 +124,12 @@ export const pluginManagerApi = {
   // Refresh plugin catalog from GitHub
   refreshCatalog: () => api.post('/plugins/manage/refresh-catalog'),
   
+  // Check if prebuilt binaries are available for a plugin
+  checkAvailability: (repository) => api.post('/plugins/manage/check-availability', { repository }),
+  
+  // Check availability for multiple plugins
+  checkAvailabilityBulk: (repositories) => api.post('/plugins/manage/check-availability-bulk', { repositories }),
+  
   // Install plugin from repository with channel selection
   // channel: 'stable' (default), 'beta', or 'source'
   install: (repository, channel = 'stable') => api.post('/plugins/manage/install', { repository, channel }),

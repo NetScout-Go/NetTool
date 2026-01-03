@@ -325,6 +325,67 @@ func main() {
 				c.JSON(http.StatusOK, response)
 			})
 
+			// Check plugin availability (prebuilt binaries)
+			pluginManage.POST("/check-availability", func(c *gin.Context) {
+				var request struct {
+					Repository string `json:"repository"`
+				}
+
+				if err := c.BindJSON(&request); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				// Extract org and repo from the repository URL
+				parts := strings.Split(request.Repository, "/")
+				var org, repoName string
+				for i, part := range parts {
+					if part == "github.com" && i+2 < len(parts) {
+						org = parts[i+1]
+						repoName = parts[i+2]
+						break
+					}
+				}
+
+				if org == "" || repoName == "" {
+					if len(parts) >= 2 {
+						org = parts[len(parts)-2]
+						repoName = parts[len(parts)-1]
+					}
+				}
+
+				// Remove .git suffix if present
+				if strings.HasSuffix(repoName, ".git") {
+					repoName = repoName[:len(repoName)-4]
+				}
+
+				if org == "" || repoName == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid repository URL format"})
+					return
+				}
+
+				availability := pluginInstaller.CheckPluginAvailability(org, repoName)
+				c.JSON(http.StatusOK, availability)
+			})
+
+			// Check multiple plugins availability
+			pluginManage.POST("/check-availability-bulk", func(c *gin.Context) {
+				var request struct {
+					Repositories []string `json:"repositories"`
+				}
+
+				if err := c.BindJSON(&request); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				results := pluginInstaller.CheckMultiplePluginsAvailability(request.Repositories)
+				c.JSON(http.StatusOK, gin.H{
+					"platform": plugins.GetPlatformString(),
+					"results":  results,
+				})
+			})
+
 			// Refresh plugin catalog from GitHub
 			pluginManage.POST("/refresh-catalog", func(c *gin.Context) {
 				response, err := pluginInstaller.RefreshPluginCatalog()

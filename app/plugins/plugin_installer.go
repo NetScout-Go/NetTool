@@ -1801,6 +1801,155 @@ func extractPluginIDFromRepo(repo string) string {
 // Pre-built Binary Installation
 // =============================================================================
 
+// PluginAvailability represents the available installation options for a plugin
+type PluginAvailability struct {
+	PluginID       string `json:"pluginId"`
+	Repository     string `json:"repository"`
+	Platform       string `json:"platform"`
+	HasStable      bool   `json:"hasStable"`
+	StableVersion  string `json:"stableVersion,omitempty"`
+	StableSize     int64  `json:"stableSize,omitempty"`
+	HasBeta        bool   `json:"hasBeta"`
+	BetaVersion    string `json:"betaVersion,omitempty"`
+	BetaSize       int64  `json:"betaSize,omitempty"`
+	CanBuildSource bool   `json:"canBuildSource"`
+	Error          string `json:"error,omitempty"`
+}
+
+// CheckPluginAvailability checks what installation options are available for a plugin
+func (pi *PluginInstaller) CheckPluginAvailability(org, repo string) PluginAvailability {
+	pluginID := repo
+	if strings.HasPrefix(repo, "Plugin_") {
+		pluginID = strings.TrimPrefix(repo, "Plugin_")
+	}
+
+	platform := getPlatformString()
+	result := PluginAvailability{
+		PluginID:       pluginID,
+		Repository:     fmt.Sprintf("https://github.com/%s/%s", org, repo),
+		Platform:       platform,
+		CanBuildSource: true, // Always available as fallback
+	}
+
+	if platform == "" {
+		result.Error = fmt.Sprintf("No pre-built binaries for %s/%s, source install only", runtime.GOOS, runtime.GOARCH)
+		return result
+	}
+
+	// Check stable release
+	stableRelease, stableAsset, err := pi.findReleaseAsset(org, repo, pluginID, platform, false)
+	if err == nil && stableAsset != nil {
+		result.HasStable = true
+		result.StableVersion = stableRelease.TagName
+		result.StableSize = stableAsset.Size
+	}
+
+	// Check beta release
+	betaRelease, betaAsset, err := pi.findReleaseAsset(org, repo, pluginID, platform, true)
+	if err == nil && betaAsset != nil {
+		result.HasBeta = true
+		result.BetaVersion = betaRelease.TagName
+		result.BetaSize = betaAsset.Size
+	}
+
+	return result
+}
+
+// CheckMultiplePluginsAvailability checks availability for multiple plugins
+func (pi *PluginInstaller) CheckMultiplePluginsAvailability(repositories []string) []PluginAvailability {
+	results := make([]PluginAvailability, 0, len(repositories))
+
+	for _, repo := range repositories {
+		// Extract org and repo name from the URL
+		parts := strings.Split(repo, "/")
+		var org, repoName string
+		for i, part := range parts {
+			if part == "github.com" && i+2 < len(parts) {
+				org = parts[i+1]
+				repoName = parts[i+2]
+				break
+			}
+		}
+
+		if org == "" || repoName == "" {
+			// Fallback: use last two parts
+			if len(parts) >= 2 {
+				org = parts[len(parts)-2]
+				repoName = parts[len(parts)-1]
+			}
+		}
+
+		// Remove .git suffix if present
+		if strings.HasSuffix(repoName, ".git") {
+			repoName = repoName[:len(repoName)-4]
+		}
+
+		if org != "" && repoName != "" {
+			results = append(results, pi.CheckPluginAvailability(org, repoName))
+		}
+	}
+
+	return results
+}
+
+// findReleaseAsset finds the appropriate asset for the platform in a release
+func (pi *PluginInstaller) findReleaseAsset(org, repo, pluginID, platform string, useBeta bool) (*GitHubRelease, *GitHubReleaseAsset, error) {
+	// Determine which release to fetch
+	var releaseURL string
+	if useBeta {
+		releaseURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/beta", org, repo)
+	} else {
+		releaseURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", org, repo)
+	}
+
+	// Create request
+	req, err := http.NewRequest("GET", releaseURL, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add authentication if available
+	token, tokenErr := pi.config.GetTokenForOrganization(org)
+	if tokenErr == nil && token != "" {
+		req.Header.Add("Authorization", "token "+token)
+	}
+	req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
+	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
+	// Make request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch release info: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("release not found (HTTP %d)", resp.StatusCode)
+	}
+
+	// Parse release
+	var release GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse release info: %v", err)
+	}
+
+	// Find the appropriate asset for this platform
+	for i, asset := range release.Assets {
+		// Try various naming patterns
+		if strings.Contains(asset.Name, platform) && strings.HasSuffix(asset.Name, ".tar.gz") {
+			return &release, &release.Assets[i], nil
+		}
+	}
+
+	return &release, nil, fmt.Errorf("no asset found for platform %s", platform)
+}
+
+// GetPlatformString exports the platform string for API use
+func GetPlatformString() string {
+	return getPlatformString()
+}
+
 // getPlatformString returns the platform identifier for the current system
 func getPlatformString() string {
 	goos := runtime.GOOS
@@ -1847,77 +1996,19 @@ func (pi *PluginInstaller) downloadPrebuiltBinary(org, repo, pluginID string, us
 		return fmt.Errorf("no pre-built binary available for this platform: %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 
-	// Determine which release to fetch
-	var releaseURL string
-	if useBeta {
-		releaseURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/beta", org, repo)
-	} else {
-		releaseURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", org, repo)
-	}
-
-	// Create request
-	req, err := http.NewRequest("GET", releaseURL, nil)
+	// Use the new findReleaseAsset function
+	release, asset, err := pi.findReleaseAsset(org, repo, pluginID, platform, useBeta)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %v", err)
+		return err
 	}
-
-	// Add authentication if available
-	token, tokenErr := pi.config.GetTokenForOrganization(org)
-	if tokenErr == nil && token != "" {
-		req.Header.Add("Authorization", "token "+token)
-	}
-	req.Header.Add("User-Agent", "NetTool-Plugin-Installer")
-	req.Header.Add("Accept", "application/vnd.github.v3+json")
-
-	// Make request
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to fetch release info: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("release not found (HTTP %d)", resp.StatusCode)
-	}
-
-	// Parse release
-	var release GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return fmt.Errorf("failed to parse release info: %v", err)
-	}
-
-	// Find the appropriate asset for this platform
-	var assetURL string
-	var assetName string
-	versionSuffix := release.TagName
-	if useBeta {
-		versionSuffix = "beta"
-	}
-
-	expectedName := fmt.Sprintf("%s-%s-%s.tar.gz", pluginID, platform, versionSuffix)
-
-	for _, asset := range release.Assets {
-		if asset.Name == expectedName {
-			assetURL = asset.BrowserDownloadURL
-			assetName = asset.Name
-			break
-		}
-		// Also try without version suffix for beta
-		if useBeta && strings.Contains(asset.Name, platform) && strings.HasSuffix(asset.Name, ".tar.gz") {
-			assetURL = asset.BrowserDownloadURL
-			assetName = asset.Name
-		}
-	}
-
-	if assetURL == "" {
+	if asset == nil {
 		return fmt.Errorf("no binary found for platform %s in release %s", platform, release.TagName)
 	}
 
-	log.Printf("Downloading pre-built binary: %s", assetName)
+	log.Printf("Downloading pre-built binary: %s", asset.Name)
 
 	// Download the asset
-	assetResp, err := http.Get(assetURL)
+	assetResp, err := http.Get(asset.BrowserDownloadURL)
 	if err != nil {
 		return fmt.Errorf("failed to download binary: %v", err)
 	}
