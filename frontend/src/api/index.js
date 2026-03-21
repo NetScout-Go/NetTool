@@ -63,6 +63,13 @@ export const networkApi = {
   getNetworkInfo: () => api.get('/network-info'),
 }
 
+// Diagnostics / history API
+export const diagnosticsApi = {
+  getSummary: () => api.get('/diagnostics/summary'),
+  getHistory: (limit = 60) => api.get(`/network-history?limit=${limit}`),
+  getHistoryExportUrl: (format = 'csv', limit = 120) => `/api/network-history/export?format=${format}&limit=${limit}`,
+}
+
 // Interface Detection API
 export const interfacesApi = {
   // Get all interfaces categorized

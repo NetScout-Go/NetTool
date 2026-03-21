@@ -29,6 +29,8 @@ var (
 	IntegrityEnabled = "true"
 )
 
+const devIntegrityBypassEnv = "NETTOOL_ALLOW_DEV_BUILD"
+
 // Trusted DNS servers for verification
 // We use multiple independent DNS providers to detect DNS spoofing
 var trustedDNSServers = []string{
@@ -152,6 +154,19 @@ func VerifyBinaryIntegrity() *IntegrityStatus {
 		return status
 	}
 
+	// Explicit development-mode escape hatch for source builds.
+	// This is only available when no embedded production hash is present,
+	// and it requires an explicit runtime opt-in.
+	if isTruthyEnv(os.Getenv(devIntegrityBypassEnv)) {
+		status.Source = "development"
+		status.Verified = true
+		status.ShouldBlock = false
+		status.Error = fmt.Sprintf("development build allowed via %s; production integrity verification remains disabled for this run", devIntegrityBypassEnv)
+		cachedStatus = status
+		integrityChecked = true
+		return status
+	}
+
 	// PRIORITY 2: Fetch hash from GitHub releases (remote trusted source)
 	// This is the ONLY external source we trust - NOT local files
 	githubHash, source, err := fetchHashFromGitHub()
@@ -195,6 +210,15 @@ func GetCachedIntegrityStatus() *IntegrityStatus {
 	integrityMutex.Lock()
 	defer integrityMutex.Unlock()
 	return cachedStatus
+}
+
+func isTruthyEnv(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // calculateBinaryHash computes SHA256 hash of the binary

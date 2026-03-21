@@ -41,12 +41,15 @@ func LoadPluginFunc(pluginDir, pluginID string) (func(map[string]interface{}) (i
 	}
 
 	// Dynamic import based on plugin directory
-	// The plugin must have a Plugin() function that returns a map with an "execute" key
+	// Prefer executing the real source plugin via a generated wrapper program.
+	// This avoids the old behavior where many plugins silently fell back to stubs
+	// or incorrectly required a precompiled .so file.
 	return func(params map[string]interface{}) (interface{}, error) {
-		// Import the plugin using direct code execution
-		//pluginName := filepath.Base(pluginDir)
+		if result, err := executeSourcePlugin(pluginDir, pluginID, params); err == nil {
+			return result, nil
+		}
 
-		// Handle specific plugins based on their IDs
+		// Fall back to legacy helper implementations only when direct execution fails.
 		switch pluginID {
 		case "subnet_calculator":
 			// Use the ExecuteAdapter function from the subnet_calculator package
@@ -132,50 +135,160 @@ func executeCommand(command string) (string, error) {
 	return output, err
 }
 
+func executeSourcePlugin(pluginDir, pluginID string, params map[string]interface{}) (interface{}, error) {
+	var err error
+	pluginDir, err = filepath.Abs(pluginDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve absolute plugin dir for %s: %w", pluginID, err)
+	}
+
+	pluginGoPath := filepath.Join(pluginDir, "plugin.go")
+	content, err := os.ReadFile(pluginGoPath)
+	if err != nil {
+		return nil, fmt.Errorf("read plugin source for %s: %w", pluginID, err)
+	}
+
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("marshal parameters for %s: %w", pluginID, err)
+	}
+
+	if strings.Contains(string(content), "package main") {
+		cmd := exec.Command("go", "run", "plugin.go", "--execute="+string(paramsJSON))
+		cmd.Dir = pluginDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("execute main plugin %s: %w: %s", pluginID, err, strings.TrimSpace(string(output)))
+		}
+		return decodePluginOutput(output)
+	}
+
+	pluginModulePath, moduleRoot, err := resolvePluginModule(pluginDir)
+	if err != nil {
+		return nil, err
+	}
+
+	wrapperDir, err := os.MkdirTemp(moduleRoot, ".nettool-plugin-wrapper-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp wrapper dir: %w", err)
+	}
+	defer os.RemoveAll(wrapperDir)
+
+	importPath := pluginModulePath
+	if pluginModulePath == "" {
+		return nil, fmt.Errorf("empty module path for plugin %s", pluginID)
+	}
+	if pluginModulePath == "github.com/NetScout-Go/NetTool" {
+		importPath = fmt.Sprintf("%s/app/plugins/plugins/%s", pluginModulePath, pluginID)
+	}
+	wrapperSource := fmt.Sprintf(`package main
+import (
+  "encoding/json"
+  "fmt"
+  "os"
+  pluginpkg %q
+)
+func main() {
+  var params map[string]interface{}
+  if err := json.Unmarshal([]byte(os.Args[1]), &params); err != nil {
+    fmt.Fprintf(os.Stderr, "parse params: %%v", err)
+    os.Exit(1)
+  }
+  result, err := pluginpkg.Execute(params)
+  if err != nil {
+    fmt.Fprintf(os.Stderr, "execute plugin: %%v", err)
+    os.Exit(1)
+  }
+  if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+    fmt.Fprintf(os.Stderr, "encode result: %%v", err)
+    os.Exit(1)
+  }
+}
+`, importPath)
+
+	mainPath := filepath.Join(wrapperDir, "main.go")
+	if err := os.WriteFile(mainPath, []byte(wrapperSource), 0600); err != nil {
+		return nil, fmt.Errorf("write wrapper source: %w", err)
+	}
+
+	cmd := exec.Command("go", "run", mainPath, string(paramsJSON))
+	cmd.Dir = moduleRoot
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("execute library plugin %s: %w: %s", pluginID, err, strings.TrimSpace(string(output)))
+	}
+
+	return decodePluginOutput(output)
+}
+
+func decodePluginOutput(output []byte) (interface{}, error) {
+	trimmed := bytes.TrimSpace(output)
+	var result interface{}
+	if err := json.Unmarshal(trimmed, &result); err != nil {
+		return map[string]interface{}{"result": string(trimmed)}, nil
+	}
+	return result, nil
+}
+
+func findRepoRoot(start string) (string, error) {
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("could not locate repository root from %s", start)
+		}
+		dir = parent
+	}
+}
+
+func resolvePluginModule(pluginDir string) (modulePath string, moduleRoot string, err error) {
+	pluginGoMod := filepath.Join(pluginDir, "go.mod")
+	if _, statErr := os.Stat(pluginGoMod); statErr == nil {
+		modulePath, err = readModulePath(pluginGoMod)
+		if err != nil {
+			return "", "", err
+		}
+		return modulePath, pluginDir, nil
+	}
+
+	repoRoot, err := findRepoRoot(pluginDir)
+	if err != nil {
+		return "", "", err
+	}
+	modulePath, err = readModulePath(filepath.Join(repoRoot, "go.mod"))
+	if err != nil {
+		return "", "", err
+	}
+	return modulePath, repoRoot, nil
+}
+
+func readModulePath(goModPath string) (string, error) {
+	data, err := os.ReadFile(goModPath)
+	if err != nil {
+		return "", fmt.Errorf("read go.mod: %w", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
+		}
+	}
+	return "", fmt.Errorf("module path not found in %s", goModPath)
+}
+
 // Specific implementations for each plugin
 // These functions would typically be replaced by properly loading the plugin modules
 // but for now, we'll implement them with direct imports or simple placeholder functionality
 
 func executeSubnetCalculator(params map[string]interface{}) (interface{}, error) {
-	// Try to use a pre-compiled dynamic plugin (.so file)
-	// NOTE: Do NOT check the registry here - this function can be called from
-	// LoadPluginFunc which itself gets registered, causing infinite recursion
 	pluginDir := filepath.Join("app", "plugins", "plugins", "subnet_calculator")
-	pluginPath := filepath.Join(pluginDir, "subnet_calculator.so")
-
-	// Check if pre-compiled plugin exists
-	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("subnet_calculator plugin not available: no pre-compiled .so file")
+	if result, err := executeSourcePlugin(pluginDir, "subnet_calculator", params); err == nil {
+		return result, nil
 	}
-
-	// Try to load the pre-compiled plugin
-	p, err := plugin.Open(pluginPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load subnet_calculator plugin: %v", err)
-	}
-
-	// Look up the Plugin symbol
-	pluginSymbol, err := p.Lookup("Plugin")
-	if err != nil {
-		return nil, fmt.Errorf("subnet_calculator plugin does not export Plugin symbol: %v", err)
-	}
-
-	// Call the Plugin function
-	pluginFunc := reflect.ValueOf(pluginSymbol).Call(nil)[0].Interface()
-
-	// Extract the execute function
-	pluginMap, ok := pluginFunc.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("subnet_calculator Plugin() did not return a map")
-	}
-
-	execFunc, ok := pluginMap["execute"].(func(map[string]interface{}) (interface{}, error))
-	if !ok {
-		return nil, fmt.Errorf("subnet_calculator does not provide a valid execute function")
-	}
-
-	// Call the execute function with the provided parameters
-	return execFunc(params)
+	return nil, fmt.Errorf("subnet_calculator plugin not available: no pre-compiled .so file")
 }
 
 func executeNetworkLatencyHeatmap(params map[string]interface{}) (interface{}, error) {

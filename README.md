@@ -75,11 +75,13 @@ chmod +x install-plugins.sh
 ./install-plugins.sh
 
 # Build & run
-go build
-./nettool --port 8080
+go build -o nettool .
+NETTOOL_ALLOW_DEV_BUILD=1 ./nettool --port 8080
 ```
 
-> **Pi Zero tip:** Use `env CGO_ENABLED=0 go build` if you hit CGO-related link errors.
+> **Development note:** source-built binaries do not match the signed release hashes. For local development/testing, opt in explicitly with `NETTOOL_ALLOW_DEV_BUILD=1`. Official release builds still use the normal integrity verification path.
+>
+> **Pi Zero tip:** Use `env CGO_ENABLED=0 go build -o nettool .` if you hit CGO-related link errors.
 
 Visit `http://<device-ip>:8080` to open the dashboard.
 

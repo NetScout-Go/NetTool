@@ -11,6 +11,7 @@ import {
   Gauge,
   Wifi,
   Activity,
+  Radar,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -148,6 +149,20 @@ export default function Sidebar({ isOpen, onToggle, darkMode, onDarkModeToggle }
           >
             <Settings className="w-5 h-5 flex-shrink-0" />
             {isOpen && <span className="font-medium">Plugin Manager</span>}
+          </NavLink>
+
+          {/* Insights */}
+          <NavLink
+            to="/insights"
+            className={({ isActive }) => `
+              flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
+              ${isActive 
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' 
+                : 'hover:bg-dark-800/50 text-dark-300 hover:text-white'}
+            `}
+          >
+            <Radar className="w-5 h-5 flex-shrink-0" />
+            {isOpen && <span className="font-medium">Insights</span>}
           </NavLink>
 
           {/* Divider */}

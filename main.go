@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -176,8 +177,49 @@ func main() {
 
 			// Update the timestamp to current time
 			networkInfo.Timestamp = time.Now()
+			recordNetworkSnapshot(networkInfo)
 
 			c.JSON(http.StatusOK, networkInfo)
+		})
+
+		// Get a richer diagnostics summary for the dashboard/insights page
+		api.GET("/diagnostics/summary", func(c *gin.Context) {
+			summary, err := buildDiagnosticsSummary()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, summary)
+		})
+
+		// Get recent in-memory network history snapshots
+		api.GET("/network-history", func(c *gin.Context) {
+			limit, _ := strconv.Atoi(c.DefaultQuery("limit", "60"))
+			c.JSON(http.StatusOK, gin.H{
+				"samples": getRecentNetworkSnapshots(limit),
+				"count":   len(getRecentNetworkSnapshots(limit)),
+			})
+		})
+
+		// Export recent history as CSV or JSON
+		api.GET("/network-history/export", func(c *gin.Context) {
+			limit, _ := strconv.Atoi(c.DefaultQuery("limit", "120"))
+			format := strings.ToLower(c.DefaultQuery("format", "csv"))
+			samples := getRecentNetworkSnapshots(limit)
+
+			switch format {
+			case "json":
+				c.Header("Content-Disposition", "attachment; filename=network-history.json")
+				c.JSON(http.StatusOK, gin.H{"samples": samples, "count": len(samples)})
+			default:
+				csvData, err := exportNetworkSnapshotsCSV(limit)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.Header("Content-Disposition", "attachment; filename=network-history.csv")
+				c.Data(http.StatusOK, "text/csv; charset=utf-8", []byte(csvData))
+			}
 		})
 
 		// Get binary integrity status
@@ -808,6 +850,7 @@ func startNetworkInfoBroadcaster() {
 
 		// Set timestamp to current time
 		networkInfo.Timestamp = time.Now()
+		recordNetworkSnapshot(networkInfo)
 
 		// Prepare the message once for all clients
 		message := map[string]interface{}{
@@ -950,7 +993,8 @@ func performIntegrityCheck(showStatus bool) {
 			fmt.Println("⛔ Binary will NOT run - integrity check CANNOT be skipped")
 			fmt.Println("   This is a security measure to protect against tampering")
 		}
-		fmt.Println("═══════════════════════════════════════\n")
+		fmt.Println("═══════════════════════════════════════")
+		fmt.Println()
 		return
 	}
 

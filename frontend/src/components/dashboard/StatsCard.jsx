@@ -9,6 +9,15 @@ const gradientClasses = {
   pink: 'gradient-pink',
 }
 
+const iconClasses = {
+  blue: 'bg-primary-500/20 text-primary-400',
+  cyan: 'bg-cyan-500/20 text-cyan-400',
+  purple: 'bg-purple-500/20 text-purple-400',
+  orange: 'bg-orange-500/20 text-orange-400',
+  teal: 'bg-teal-500/20 text-teal-400',
+  pink: 'bg-pink-500/20 text-pink-400',
+}
+
 const badgeVariants = {
   success: 'bg-green-500/20 text-green-400 border-green-500/30',
   warning: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
@@ -33,8 +42,8 @@ export default function StatsCard({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           {Icon && (
-            <div className={`p-2 rounded-lg bg-${gradient}-500/20`}>
-              <Icon className={`w-5 h-5 text-${gradient}-400`} />
+            <div className={`p-2 rounded-lg ${iconClasses[gradient] || iconClasses.blue}`}>
+              <Icon className="w-5 h-5" />
             </div>
           )}
           <h3 className="text-lg font-semibold text-white">{title}</h3>

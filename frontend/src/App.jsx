@@ -5,6 +5,7 @@ import Header from './components/layout/Header'
 import Dashboard from './pages/Dashboard'
 import PluginManager from './pages/PluginManager'
 import PluginPage from './pages/PluginPage'
+import NetworkInsights from './pages/NetworkInsights'
 import { useWebSocket } from './hooks/useWebSocket'
 import { PluginProvider } from './context/PluginContext'
 
@@ -61,6 +62,10 @@ function AppContent() {
             <Route 
               path="/plugin-manager" 
               element={<PluginManager />} 
+            />
+            <Route 
+              path="/insights" 
+              element={<NetworkInsights />} 
             />
             <Route 
               path="/plugin/:id" 
